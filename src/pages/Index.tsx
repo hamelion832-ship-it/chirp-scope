@@ -23,9 +23,16 @@ const Index = () => {
   const [bw, setBw] = useState(125);
   const [cr, setCr] = useState(1);
   const [text, setText] = useState(DEFAULT_TEXT);
-  const [numSymbols, setNumSymbols] = useState(8);
+  const [numSymbols, setNumSymbols] = useState(20);
   const [tags, setTags] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Max symbols based on text byte length and SF
+  const maxSymbols = useMemo(() => {
+    const byteLen = new TextEncoder().encode(text).length;
+    const clampedBytes = Math.min(byteLen, 1240);
+    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
+  }, [text, sf]);
   const [saving, setSaving] = useState(false);
 
   const params = useMemo(() => ({
@@ -159,11 +166,11 @@ const Index = () => {
 
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-            <Activity className="w-3 h-3" /> Символы: {numSymbols}
+            <Activity className="w-3 h-3" /> Символы: {numSymbols} / {maxSymbols}
           </label>
-          <input type="range" min={2} max={20} value={numSymbols}
+          <input type="range" min={1} max={maxSymbols} value={numSymbols}
             onChange={e => setNumSymbols(Number(e.target.value))}
-            className="w-20 accent-signal-green" />
+            className="w-28 accent-signal-green" />
         </div>
 
         <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
