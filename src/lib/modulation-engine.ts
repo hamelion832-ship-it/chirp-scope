@@ -322,7 +322,8 @@ export function decodeFSK(
     const symFloat = (freqEst / freqStep) + (M - 1) / 2;
     const sym = Math.max(0, Math.min(M - 1, Math.round(symFloat)));
     symbols.push(sym);
-    confidence.push(Math.min(1, Math.abs(Math.round(symFloat) - symFloat) < 0.3 ? 0.9 : 0.5));
+    const dist = Math.abs(Math.round(symFloat) - symFloat);
+    confidence.push(Math.min(1, Math.max(0.1, 1 - dist * 2)));
   }
 
   return finalizeProtocol(symbols, confidence, bitsPerSym, `${M}-FSK`, t0);

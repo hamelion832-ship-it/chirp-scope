@@ -205,7 +205,7 @@ export function decryptAESLike(data: number[], key: number[]): number[] {
     let block = bytes.slice(blockStart, blockStart + 16);
     for (let round = 3; round >= 0; round--) {
       block = addRoundKey(block, key.map((k, i) => k ^ (round * 16 + i)));
-      if (round < 3) block = mixColumns(block); // simplified inverse
+      if (round < 3) block = invMixColumns(block);
       block = invShiftRows(block);
       block = invSubBytes(block);
     }
