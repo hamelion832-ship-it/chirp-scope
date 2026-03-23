@@ -46,6 +46,12 @@ export function InverseModelPanel() {
     const clampedBytes = Math.min(byteLen, 1240);
     return Math.max(1, Math.floor((clampedBytes * 8) / sf));
   }, [text, sf]);
+
+  // Clamp numSymbols when maxSymbols changes
+  useEffect(() => {
+    setNumSymbols(prev => Math.min(prev, maxSymbols));
+  }, [maxSymbols]);
+
   const [activeDecoder, setActiveDecoder] = useState<DecoderType>("mlp");
   const [config, setConfig] = useState<DecoderConfig>(DEFAULT_DECODER_CONFIG);
   const [training, setTraining] = useState(false);
