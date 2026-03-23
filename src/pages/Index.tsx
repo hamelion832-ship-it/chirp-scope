@@ -247,33 +247,6 @@ const Index = () => {
                 </select>
               </div>
             )}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <Zap className="w-3 h-3" /> SF
-              </label>
-              <select value={sf} onChange={e => setSf(Number(e.target.value))}
-                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-                {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <Waves className="w-3 h-3" /> BW
-              </label>
-              <select value={bw} onChange={e => setBw(Number(e.target.value))}
-                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-                {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground">CR</label>
-              <select value={cr} onChange={e => setCr(Number(e.target.value))}
-                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-                {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
-              </select>
-            </div>
 
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
