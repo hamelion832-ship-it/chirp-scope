@@ -34,7 +34,7 @@ export function SignalList({ onSelect, refreshKey }: SignalListProps) {
     <div className="chart-panel flex flex-col h-full">
       <div className="flex items-center gap-2 mb-3">
         <Database className="w-4 h-4 text-signal-amber" />
-        <h3 className="text-xs font-mono font-semibold text-signal-amber" style={{ textShadow: "0 0 10px hsl(40 95% 55% / 0.4)" }}>
+        <h3 className="text-xs font-mono font-semibold text-signal-amber">
           База данных сигналов
         </h3>
         <button onClick={load} className="ml-auto p-1 rounded hover:bg-secondary transition-colors">
