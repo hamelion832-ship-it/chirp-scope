@@ -49,6 +49,7 @@ export function NeuralFormulaPanel() {
   const [autoFit, setAutoFit] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AISuggestion | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  const [unifiedMode, setUnifiedMode] = useState(false);
 
   useEffect(() => {
     fetchSignals().then(setSignals);
@@ -138,32 +139,78 @@ export function NeuralFormulaPanel() {
     const newResults = new Map<string, TrainingResult>();
     const total = selected.length;
 
-    for (let idx = 0; idx < total; idx++) {
-      const id = selected[idx];
-      const stored = signals.find(s => s.id === id);
-      if (!stored) continue;
-
-      const samples = buildSamples(stored);
+    if (unifiedMode && total > 1) {
+      // Merge all selected signals into one training set
+      let mergedSamples: SignalSample[] = [];
+      for (const id of selected) {
+        const stored = signals.find(s => s.id === id);
+        if (!stored) continue;
+        const samples = buildSamples(stored);
+        const offset = mergedSamples.length > 0 ? mergedSamples[mergedSamples.length - 1].t + 0.1 : 0;
+        mergedSamples.push(...samples.map(s => ({ t: s.t + offset, y: s.y })));
+      }
+      if (mergedSamples.length === 0) { setTraining(false); return; }
       const result = autoFit
-        ? autoFitBest(samples, config)
-        : trainFormula(samples, config, formulaType, undefined, () => {});
-      newResults.set(id, result);
-      setProgress(((idx + 1) / total) * 100);
-      await new Promise(r => setTimeout(r, 10));
-    }
+        ? autoFitBest(mergedSamples, config)
+        : trainFormula(mergedSamples, config, formulaType, undefined, (ep) => setProgress((ep / config.epochs) * 100));
+      // Store unified result under a special key and also under each selected signal
+      const unifiedKey = "__unified__";
+      newResults.set(unifiedKey, result);
+      for (const id of selected) newResults.set(id, result);
+      setResults(newResults);
+      setTraining(false);
+      setActiveSignalId(unifiedKey);
+      toast.success(`Единая модель на ${total} сигналах: R²=${result.r2.toFixed(4)}`);
+    } else {
+      for (let idx = 0; idx < total; idx++) {
+        const id = selected[idx];
+        const stored = signals.find(s => s.id === id);
+        if (!stored) continue;
 
-    setResults(newResults);
-    setTraining(false);
-    if (selected.length > 0) setActiveSignalId(selected[0]);
+        const samples = buildSamples(stored);
+        const result = autoFit
+          ? autoFitBest(samples, config)
+          : trainFormula(samples, config, formulaType, undefined, () => {});
+        newResults.set(id, result);
+        setProgress(((idx + 1) / total) * 100);
+        await new Promise(r => setTimeout(r, 10));
+      }
+
+      setResults(newResults);
+      setTraining(false);
+      if (selected.length > 0) setActiveSignalId(selected[0]);
+    }
   }, [selected, signals, config, buildSamples, formulaType, autoFit]);
 
   const activeResult = activeSignalId ? results.get(activeSignalId) : undefined;
-  const activeStored = activeSignalId ? signals.find(s => s.id === activeSignalId) : undefined;
+  const isUnifiedResult = activeSignalId === "__unified__";
+  const activeStored = activeSignalId && !isUnifiedResult ? signals.find(s => s.id === activeSignalId) : undefined;
   const activeFormulaType = activeResult?.formulaType ?? formulaType;
   const activeCoeffLabels = COEFF_LABELS[activeFormulaType];
 
   const comparisonData = useMemo(() => {
-    if (!activeStored || !activeResult) return [];
+    if (!activeResult) return [];
+    if (isUnifiedResult) {
+      // Build merged samples for unified view
+      let mergedSamples: SignalSample[] = [];
+      for (const id of selected) {
+        const stored = signals.find(s => s.id === id);
+        if (!stored) continue;
+        const samples = buildSamples(stored);
+        const offset = mergedSamples.length > 0 ? mergedSamples[mergedSamples.length - 1].t + 0.1 : 0;
+        mergedSamples.push(...samples.map(s => ({ t: s.t + offset, y: s.y })));
+      }
+      if (mergedSamples.length === 0) return [];
+      const tMin = mergedSamples[0].t;
+      const tMax = mergedSamples[mergedSamples.length - 1].t;
+      const predicted = generatePrediction(activeResult.coefficients, activeResult.formulaType, tMin, tMax, mergedSamples.length);
+      return mergedSamples.map((s, i) => ({
+        t: s.t.toFixed(3),
+        original: s.y,
+        predicted: predicted[i]?.y ?? 0,
+      }));
+    }
+    if (!activeStored) return [];
     const samples = buildSamples(activeStored);
     const tMin = samples[0]?.t ?? 0;
     const tMax = samples[samples.length - 1]?.t ?? 1;
@@ -173,7 +220,7 @@ export function NeuralFormulaPanel() {
       original: s.y,
       predicted: predicted[i]?.y ?? 0,
     }));
-  }, [activeStored, activeResult, buildSamples]);
+  }, [activeStored, activeResult, buildSamples, isUnifiedResult, selected, signals]);
 
   const lossData = useMemo(() => {
     if (!activeResult) return [];
@@ -270,6 +317,14 @@ export function NeuralFormulaPanel() {
             className="text-[10px] font-mono text-muted-foreground hover:text-foreground underline">Выбрать все</button>
           <button onClick={() => setSelected([])}
             className="text-[10px] font-mono text-muted-foreground hover:text-foreground underline">Сбросить</button>
+          <button onClick={() => setUnifiedMode(!unifiedMode)}
+            className={`text-[10px] font-mono px-2.5 py-1 rounded border transition-colors flex items-center gap-1 ${
+              unifiedMode
+                ? 'bg-signal-magenta/20 text-signal-magenta border-signal-magenta/40'
+                : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
+            }`}>
+            <BarChart3 className="w-3 h-3" /> Единая модель
+          </button>
         </div>
 
         {/* Formula type selector */}
@@ -348,6 +403,16 @@ export function NeuralFormulaPanel() {
         {/* Signal selection */}
         <div className="chart-panel lg:col-span-1 flex flex-col" style={{ maxHeight: 520, overflowY: "auto" }}>
           <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2">Выборка сигналов</h3>
+          {results.has("__unified__") && (
+            <div
+              className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-1
+                ${activeSignalId === "__unified__" ? "bg-signal-magenta/20 border border-signal-magenta/30" : "hover:bg-secondary border border-transparent"}`}
+              onClick={() => setActiveSignalId("__unified__")}>
+              <BarChart3 className="w-3 h-3 text-signal-magenta" />
+              <span className="flex-1 text-signal-magenta font-semibold">Единая модель ({selected.length} сиг.)</span>
+              <CheckCircle2 className="w-3 h-3 text-signal-green" />
+            </div>
+          )}
           {signals.length === 0 && (
             <p className="text-[10px] font-mono text-muted-foreground">Нет сигналов в БД</p>
           )}
@@ -375,13 +440,13 @@ export function NeuralFormulaPanel() {
 
         {/* Results */}
         <div className="lg:col-span-3 space-y-3">
-          {activeResult && activeStored ? (
+          {activeResult && (activeStored || isUnifiedResult) ? (
             <>
               {/* Formula display */}
               <div className="chart-panel">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-mono font-semibold text-signal-green">
-                    {FORMULA_TYPES[activeResult.formulaType].label}: "{activeStored.message_text.slice(0, 40)}…"
+                    {FORMULA_TYPES[activeResult.formulaType].label}: {isUnifiedResult ? `Единая модель (${selected.length} сигналов)` : `"${activeStored!.message_text.slice(0, 40)}…"`}
                   </h3>
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-mono ${activeResult.r2 > 0.8 ? "text-signal-green" : activeResult.r2 > 0.5 ? "text-signal-amber" : "text-signal-red"}`}>

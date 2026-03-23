@@ -51,9 +51,24 @@ export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selec
             {selectedIds.length} выбр.
           </span>
         )}
-        <button onClick={load} className="ml-auto p-1 rounded hover:bg-secondary transition-colors">
-          <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
-        </button>
+        {multiSelect && (
+          <>
+            <button onClick={() => { signals.forEach(sig => { if (!selectedIds?.includes(sig.id)) onToggleSignal?.(sig); }); }}
+              className="text-[9px] font-mono text-muted-foreground hover:text-foreground underline ml-auto">Все</button>
+            <button onClick={() => { signals.forEach(sig => { if (selectedIds?.includes(sig.id)) onToggleSignal?.(sig); }); }}
+              className="text-[9px] font-mono text-muted-foreground hover:text-foreground underline">Сброс</button>
+          </>
+        )}
+        {!multiSelect && (
+          <button onClick={load} className="ml-auto p-1 rounded hover:bg-secondary transition-colors">
+            <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
+          </button>
+        )}
+        {multiSelect && (
+          <button onClick={load} className="p-1 rounded hover:bg-secondary transition-colors">
+            <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
+          </button>
+        )}
       </div>
 
       <div className="flex gap-1.5 mb-2">
