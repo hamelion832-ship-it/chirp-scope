@@ -183,12 +183,34 @@ export function NeuralFormulaPanel() {
   }, [selected, signals, config, buildSamples, formulaType, autoFit]);
 
   const activeResult = activeSignalId ? results.get(activeSignalId) : undefined;
-  const activeStored = activeSignalId ? signals.find(s => s.id === activeSignalId) : undefined;
+  const isUnifiedResult = activeSignalId === "__unified__";
+  const activeStored = activeSignalId && !isUnifiedResult ? signals.find(s => s.id === activeSignalId) : undefined;
   const activeFormulaType = activeResult?.formulaType ?? formulaType;
   const activeCoeffLabels = COEFF_LABELS[activeFormulaType];
 
   const comparisonData = useMemo(() => {
-    if (!activeStored || !activeResult) return [];
+    if (!activeResult) return [];
+    if (isUnifiedResult) {
+      // Build merged samples for unified view
+      let mergedSamples: SignalSample[] = [];
+      for (const id of selected) {
+        const stored = signals.find(s => s.id === id);
+        if (!stored) continue;
+        const samples = buildSamples(stored);
+        const offset = mergedSamples.length > 0 ? mergedSamples[mergedSamples.length - 1].t + 0.1 : 0;
+        mergedSamples.push(...samples.map(s => ({ t: s.t + offset, y: s.y })));
+      }
+      if (mergedSamples.length === 0) return [];
+      const tMin = mergedSamples[0].t;
+      const tMax = mergedSamples[mergedSamples.length - 1].t;
+      const predicted = generatePrediction(activeResult.coefficients, activeResult.formulaType, tMin, tMax, mergedSamples.length);
+      return mergedSamples.map((s, i) => ({
+        t: s.t.toFixed(3),
+        original: s.y,
+        predicted: predicted[i]?.y ?? 0,
+      }));
+    }
+    if (!activeStored) return [];
     const samples = buildSamples(activeStored);
     const tMin = samples[0]?.t ?? 0;
     const tMax = samples[samples.length - 1]?.t ?? 1;
@@ -198,7 +220,7 @@ export function NeuralFormulaPanel() {
       original: s.y,
       predicted: predicted[i]?.y ?? 0,
     }));
-  }, [activeStored, activeResult, buildSamples]);
+  }, [activeStored, activeResult, buildSamples, isUnifiedResult, selected, signals]);
 
   const lossData = useMemo(() => {
     if (!activeResult) return [];
