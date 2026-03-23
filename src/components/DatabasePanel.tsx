@@ -228,6 +228,7 @@ export function DatabasePanel() {
                   <th className="p-1.5 text-left text-muted-foreground font-medium">SF</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">BW</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">CR</th>
+                  <th className="p-1.5 text-left text-muted-foreground font-medium">Шифр.</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Симв.</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Длит. мс</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Теги</th>
