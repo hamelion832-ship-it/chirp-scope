@@ -81,7 +81,7 @@ Based on these characteristics, which formula type would best approximate this s
                 },
                 alternativeType: {
                   type: "string",
-                  enum: ["chirp", "damped_sine", "gaussian", "harmonics", "polynomial"],
+                  enum: ["chirp", "damped_sine", "gaussian", "harmonics", "polynomial", "lorentzian", "fm", "exp_rise"],
                   description: "Second best formula type",
                 },
               },
