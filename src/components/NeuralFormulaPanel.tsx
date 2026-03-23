@@ -62,16 +62,18 @@ export function NeuralFormulaPanel() {
   }, []);
 
   const buildSamples = useCallback((stored: StoredSignal, modType: ModulationType): SignalSample[] => {
+    // Use stored signal's own mod_type if available, otherwise use the passed modType
+    const effectiveModType = (stored.mod_type as ModulationType) || modType;
     const byteLen = new TextEncoder().encode(stored.message_text).length;
     let sig: { time: number[]; real: number[] };
-    if (modType === "lora") {
+    if (effectiveModType === "lora") {
       const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
       const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
       sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
     } else {
-      const maxSym = getMaxSymbols(stored.message_text, modType);
+      const maxSym = getMaxSymbols(stored.message_text, effectiveModType);
       const modParams: ModulationParams = {
-        type: modType, sampleRate: modType === "cdma" ? 500000 : 200000,
+        type: effectiveModType, sampleRate: effectiveModType === "cdma" ? 500000 : 200000,
         symbolRate: 10000, fc: 915e6, freqDeviation: 25000, chipRate: 100000, spreadingCode: 0,
       };
       sig = generateModulatedSignal(modParams, stored.message_text, Math.min(stored.n_symbols, maxSym));
