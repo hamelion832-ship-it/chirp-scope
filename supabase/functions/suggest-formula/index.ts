@@ -13,7 +13,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = `You are a signal processing expert. Given statistical properties of a radio signal, suggest the best mathematical formula type and explain why.
+    const systemPrompt = `You are a signal processing expert specializing in LoRa, FHSS, and radio signal modeling. Given statistical properties of a radio signal, suggest the best mathematical formula type and explain why. If unified model results are provided, analyze the quality and suggest improvements.
 
 Available formula types:
 1. "chirp" — y(t) = A·exp(-αt)·cos(2π(f₀t + βt²/2) + φ) + C — best for LoRa CSS chirp signals with linear frequency modulation
@@ -21,6 +21,8 @@ Available formula types:
 3. "gaussian" — y(t) = A·exp(-(t-μ)²/(2σ²))·cos(2πf₀t + φ) + C — best for localized wave packets, burst signals
 4. "harmonics" — y(t) = A₁sin(2πf₁t) + A₂sin(2πf₂t) + A₃sin(2πf₃t) + C — best for periodic multi-frequency signals
 5. "polynomial" — y(t) = a₀ + a₁t + a₂t² + a₃t³ + a₄t⁴ + a₅t⁵ — best for smooth envelope approximation
+
+For unified FHSS+Channel models, analyze: signal parameters Θ (text), FHSS parameters Φ (hopping), and channel parameters Ψ (propagation).
 
 You MUST respond using the suggest_formula tool.`;
 

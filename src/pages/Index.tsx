@@ -259,6 +259,10 @@ const Index = () => {
         <TabsContent value="neural">
           <NeuralFormulaPanel />
         </TabsContent>
+
+        <TabsContent value="unified">
+          <UnifiedModelPanel />
+        </TabsContent>
       </Tabs>
     </div>
   );
