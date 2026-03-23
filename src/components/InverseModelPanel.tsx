@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, RotateCcw,
   ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database,
@@ -37,8 +37,21 @@ export function InverseModelPanel() {
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [text, setText] = useState(SAMPLE_TEXTS[0]);
-  const [numSymbols, setNumSymbols] = useState(12);
+  const [numSymbols, setNumSymbols] = useState(20);
   const [noiseLevel, setNoiseLevel] = useState(0);
+
+  // Max symbols based on UTF-8 byte length and SF
+  const maxSymbols = useMemo(() => {
+    const byteLen = new TextEncoder().encode(text).length;
+    const clampedBytes = Math.min(byteLen, 1240);
+    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
+  }, [text, sf]);
+
+  // Clamp numSymbols when maxSymbols changes
+  useEffect(() => {
+    setNumSymbols(prev => Math.min(prev, maxSymbols));
+  }, [maxSymbols]);
+
   const [activeDecoder, setActiveDecoder] = useState<DecoderType>("mlp");
   const [config, setConfig] = useState<DecoderConfig>(DEFAULT_DECODER_CONFIG);
   const [training, setTraining] = useState(false);
@@ -75,7 +88,8 @@ export function InverseModelPanel() {
     setText(stored.message_text);
     setSf(stored.sf);
     setBw(stored.bw / 1000);
-    setNumSymbols(Math.min(stored.n_symbols, 30));
+    const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(stored.message_text).length, 1240) * 8) / stored.sf));
+    setNumSymbols(Math.min(stored.n_symbols, storedMax));
     setDbSignalId(stored.id);
     // Clear previous results
     setMlpTrain(null);
@@ -263,10 +277,10 @@ export function InverseModelPanel() {
                   </div>
                 ))}
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-muted-foreground">Символов</span>
-                  <input type="range" min={4} max={30} value={numSymbols}
+                  <span className="text-muted-foreground">Символов: {numSymbols}/{maxSymbols}</span>
+                  <input type="range" min={1} max={maxSymbols} value={Math.min(numSymbols, maxSymbols)}
                     onChange={e => setNumSymbols(Number(e.target.value))} className="w-16 accent-signal-green" />
-                  <span className="text-foreground w-6 text-right">{numSymbols}</span>
+                  <span className="text-foreground w-8 text-right">{numSymbols}</span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-mono">
                   <span className="text-muted-foreground">Шум σ</span>
