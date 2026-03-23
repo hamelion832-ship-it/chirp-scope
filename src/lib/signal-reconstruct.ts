@@ -272,8 +272,21 @@ export function assessSecurity(params: {
     description: `${decoderResults.filter(r => r.charAccuracy > 0.5).length} из ${decoderResults.length} декодеров дали >50% точности`,
   });
 
-  // Compute weighted vulnerability score
-  const vulnerabilityScore = factors.reduce((s, f) => s + f.score * f.weight, 0);
+  // 7. Encryption protection (reduces vulnerability)
+  const encStr = encryptionStrength ?? 0;
+  const encProtection = 100 - encStr; // higher strength = less vulnerable
+  factors.push({
+    name: `Шифрование (${encryptionType ?? "none"})`,
+    score: encProtection,
+    weight: 0.15,
+    description: encStr > 0
+      ? `Шифрование ${encryptionType}: стойкость ${encStr}/100 — ${encStr > 50 ? "существенно" : "частично"} затрудняет расшифровку`
+      : "Данные не зашифрованы — текст доступен при успешном декодировании",
+  });
+
+  // Compute weighted vulnerability score (re-normalize weights)
+  const totalWeight = factors.reduce((s, f) => s + f.weight, 0);
+  const vulnerabilityScore = factors.reduce((s, f) => s + f.score * (f.weight / totalWeight), 0);
 
   // Separate scores
   const signalRecoveryScore = reconScore;
