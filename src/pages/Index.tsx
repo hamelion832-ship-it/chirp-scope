@@ -338,6 +338,10 @@ const Index = () => {
         <TabsContent value="inverse">
           <InverseModelPanel />
         </TabsContent>
+
+        <TabsContent value="database">
+          <DatabasePanel />
+        </TabsContent>
       </Tabs>
     </div>
   );
