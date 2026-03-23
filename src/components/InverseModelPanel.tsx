@@ -339,7 +339,11 @@ export function InverseModelPanel() {
             {/* DB browser */}
             {showDB && (
               <div style={{ minHeight: 300 }}>
-                <SignalDBBrowser onSelectSignal={handleSelectFromDB} selectedId={dbSignalId} />
+                <SignalDBBrowser
+                  multiSelect
+                  selectedIds={dbSelectedIds}
+                  onToggleSignal={handleToggleDbSignal}
+                />
               </div>
             )}
           </div>
