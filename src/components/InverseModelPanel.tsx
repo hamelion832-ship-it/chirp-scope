@@ -17,6 +17,12 @@ import {
   reconstructFromSymbols, compareSignals, assessSecurity,
   type ReconstructedSignal, type SecurityAssessment,
 } from "@/lib/signal-reconstruct";
+import {
+  generateModulatedSignal, decodePSK, decodeFSK, decodeCDMA,
+  reconstructProtocolSignal, getMaxSymbols,
+  MODULATION_REGISTRY, type ModulationType, type ModulationParams,
+} from "@/lib/modulation-engine";
+import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
