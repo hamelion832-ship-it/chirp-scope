@@ -185,7 +185,7 @@ export function InverseModelPanel() {
         </div>
         <div className="text-[10px] font-mono text-muted-foreground bg-secondary/50 rounded px-3 py-2">
           <span className="text-signal-amber">
-            s(t) → [MLP декодер] → символы H_k → биты B_{{k,m}} → UTF-8 текст
+            {"s(t) → [MLP декодер] → символы H_k → биты B_{k,m} → UTF-8 текст"}
           </span>
           <span className="ml-2">— обучение на парах (сигнал, символы), декодирование зашумлённого сигнала</span>
         </div>
