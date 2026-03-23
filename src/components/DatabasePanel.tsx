@@ -203,6 +203,7 @@ export function DatabasePanel() {
                       className="accent-signal-green w-3 h-3" />
                   </th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Текст</th>
+                  <th className="p-1.5 text-left text-muted-foreground font-medium">Протокол</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">SF</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">BW</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">CR</th>
