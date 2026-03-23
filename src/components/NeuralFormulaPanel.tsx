@@ -297,6 +297,11 @@ export function NeuralFormulaPanel() {
 
   return (
     <div className="space-y-3">
+      {/* Protocol selector */}
+      <div className="chart-panel">
+        <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
+        <ProtocolSelector value={modType} onChange={setModType} compact />
+      </div>
       {/* Controls */}
       <div className="chart-panel space-y-3">
         <div className="flex flex-wrap gap-4 items-end">
