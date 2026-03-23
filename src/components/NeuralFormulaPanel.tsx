@@ -488,10 +488,10 @@ export function NeuralFormulaPanel() {
                   <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">Оригинал vs Предсказание</h3>
                   <ResponsiveContainer width="100%" height="90%">
                     <LineChart data={comparisonData.filter((_, i) => i % Math.max(1, Math.floor(comparisonData.length / 300)) === 0)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 15% 20%)" />
-                      <XAxis dataKey="t" tick={{ fontSize: 9, fill: "hsl(215 15% 50%)" }} />
-                      <YAxis tick={{ fontSize: 9, fill: "hsl(215 15% 50%)" }} />
-                      <Tooltip contentStyle={{ background: "hsl(220 18% 10%)", border: "1px solid hsl(220 15% 18%)", fontSize: 10 }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 90%)" />
+                      <XAxis dataKey="t" tick={{ fontSize: 9, fill: "hsl(215 15% 55%)" }} />
+                      <YAxis tick={{ fontSize: 9, fill: "hsl(215 15% 55%)" }} />
+                      <Tooltip contentStyle={{ background: "hsl(0 0% 100%)", border: "1px solid hsl(220 13% 87%)", fontSize: 10 }} />
                       <Legend wrapperStyle={{ fontSize: 10 }} />
                       <Line dataKey="original" stroke="hsl(220 80% 60%)" dot={false} strokeWidth={1.5} name="Оригинал" />
                       <Line dataKey="predicted" stroke="hsl(142 70% 50%)" dot={false} strokeWidth={1.5} strokeDasharray="4 2" name="Формула" />
@@ -502,10 +502,10 @@ export function NeuralFormulaPanel() {
                   <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">Кривая обучения (MSE)</h3>
                   <ResponsiveContainer width="100%" height="90%">
                     <LineChart data={lossData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 15% 20%)" />
-                      <XAxis dataKey="epoch" tick={{ fontSize: 9, fill: "hsl(215 15% 50%)" }} />
-                      <YAxis tick={{ fontSize: 9, fill: "hsl(215 15% 50%)" }} />
-                      <Tooltip contentStyle={{ background: "hsl(220 18% 10%)", border: "1px solid hsl(220 15% 18%)", fontSize: 10 }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 13% 90%)" />
+                      <XAxis dataKey="epoch" tick={{ fontSize: 9, fill: "hsl(215 15% 55%)" }} />
+                      <YAxis tick={{ fontSize: 9, fill: "hsl(215 15% 55%)" }} />
+                      <Tooltip contentStyle={{ background: "hsl(0 0% 100%)", border: "1px solid hsl(220 13% 87%)", fontSize: 10 }} />
                       <Line dataKey="loss" stroke="hsl(0 80% 58%)" dot={false} strokeWidth={1.5} name="MSE" />
                     </LineChart>
                   </ResponsiveContainer>
