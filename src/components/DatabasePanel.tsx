@@ -238,7 +238,7 @@ export function DatabasePanel() {
               </thead>
               <tbody>
                 {signals.length === 0 && (
-                  <tr><td colSpan={10} className="text-center text-muted-foreground py-8">
+                  <tr><td colSpan={12} className="text-center text-muted-foreground py-8">
                     {loading ? "Загрузка..." : "Нет данных"}
                   </td></tr>
                 )}
