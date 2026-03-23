@@ -85,22 +85,25 @@ function bitsToSymbols(bits: number[], bitsPerSym: number, maxSymbols: number): 
 // ─── Walsh Codes for CDMA ───
 
 function walshCode(index: number, length: number): number[] {
-  let code = [1];
-  while (code.length < length) {
-    const n = code.length;
-    const next = new Array(n * 2);
-    for (let i = 0; i < n; i++) {
-      next[i] = code[i];
-      next[i + n] = code[i];
+  // Build full Hadamard matrix row by row index
+  let size = 1;
+  let mat = [[1]];
+  while (size < length) {
+    const newSize = size * 2;
+    const newMat: number[][] = [];
+    for (let r = 0; r < newSize; r++) {
+      newMat[r] = new Array(newSize);
+      for (let c = 0; c < newSize; c++) {
+        const oldR = r % size, oldC = c % size;
+        const quadrant = (r >= size ? 1 : 0) + (c >= size ? 1 : 0);
+        newMat[r][c] = quadrant === 2 ? -mat[oldR][oldC] : mat[oldR][oldC];
+      }
     }
-    // For rows > 0, flip second half
-    if (index >= n) {
-      for (let i = n; i < 2 * n; i++) next[i] = -next[i - n];
-    }
-    code = next;
-    index = index % n;
+    mat = newMat;
+    size = newSize;
   }
-  return code.slice(0, length);
+  const row = index % size;
+  return mat[row].slice(0, length);
 }
 
 // ─── PSK Modulation ───
@@ -319,7 +322,8 @@ export function decodeFSK(
     const symFloat = (freqEst / freqStep) + (M - 1) / 2;
     const sym = Math.max(0, Math.min(M - 1, Math.round(symFloat)));
     symbols.push(sym);
-    confidence.push(Math.min(1, Math.abs(Math.round(symFloat) - symFloat) < 0.3 ? 0.9 : 0.5));
+    const dist = Math.abs(Math.round(symFloat) - symFloat);
+    confidence.push(Math.min(1, Math.max(0.1, 1 - dist * 2)));
   }
 
   return finalizeProtocol(symbols, confidence, bitsPerSym, `${M}-FSK`, t0);

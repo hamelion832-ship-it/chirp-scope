@@ -71,10 +71,13 @@ export function decryptXOR(data: number[], key: number): number[] {
 // ─── AES-like Block Cipher (simplified) ───
 
 const SBOX: number[] = (() => {
-  // Simplified S-box (Rijndael-inspired permutation)
-  const s = new Array(256);
-  for (let i = 0; i < 256; i++) {
-    s[i] = ((i * 31 + 17) ^ ((i >>> 4) | (i << 4))) & 0xFF;
+  // Build a proper permutation via seeded Fisher-Yates shuffle
+  const s = Array.from({ length: 256 }, (_, i) => i);
+  let seed = 0xDEAD;
+  const rand = () => { seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF; return seed; };
+  for (let i = 255; i > 0; i--) {
+    const j = rand() % (i + 1);
+    [s[i], s[j]] = [s[j], s[i]];
   }
   return s;
 })();
@@ -114,21 +117,39 @@ function invShiftRows(block: number[]): number[] {
   return out;
 }
 
-function mixColumn(a: number, b: number, c: number, d: number): [number, number, number, number] {
-  // Simplified MixColumns using XOR combinations
-  return [
-    (a ^ b ^ c) & 0xFF,
-    (b ^ c ^ d) & 0xFF,
-    (c ^ d ^ a) & 0xFF,
-    (d ^ a ^ b) & 0xFF,
-  ];
+/** GF(2^8) multiply for AES MixColumns */
+function gmul(a: number, b: number): number {
+  let p = 0;
+  for (let i = 0; i < 8; i++) {
+    if (b & 1) p ^= a;
+    const hi = a & 0x80;
+    a = (a << 1) & 0xFF;
+    if (hi) a ^= 0x1B; // x^8 + x^4 + x^3 + x + 1
+    b >>= 1;
+  }
+  return p;
 }
 
 function mixColumns(block: number[]): number[] {
   const out = [...block];
   for (let col = 0; col < 4; col++) {
-    const [a, b, c, d] = mixColumn(block[col], block[4 + col], block[8 + col], block[12 + col]);
-    out[col] = a; out[4 + col] = b; out[8 + col] = c; out[12 + col] = d;
+    const a = block[col], b = block[4 + col], c = block[8 + col], d = block[12 + col];
+    out[col]       = gmul(2,a) ^ gmul(3,b) ^ c ^ d;
+    out[4 + col]   = a ^ gmul(2,b) ^ gmul(3,c) ^ d;
+    out[8 + col]   = a ^ b ^ gmul(2,c) ^ gmul(3,d);
+    out[12 + col]  = gmul(3,a) ^ b ^ c ^ gmul(2,d);
+  }
+  return out;
+}
+
+function invMixColumns(block: number[]): number[] {
+  const out = [...block];
+  for (let col = 0; col < 4; col++) {
+    const a = block[col], b = block[4 + col], c = block[8 + col], d = block[12 + col];
+    out[col]       = gmul(14,a) ^ gmul(11,b) ^ gmul(13,c) ^ gmul(9,d);
+    out[4 + col]   = gmul(9,a) ^ gmul(14,b) ^ gmul(11,c) ^ gmul(13,d);
+    out[8 + col]   = gmul(13,a) ^ gmul(9,b) ^ gmul(14,c) ^ gmul(11,d);
+    out[12 + col]  = gmul(11,a) ^ gmul(13,b) ^ gmul(9,c) ^ gmul(14,d);
   }
   return out;
 }
@@ -147,6 +168,7 @@ export function encryptAESLike(data: number[], key: number[]): number[] {
     }
     bytes.push(byte);
   }
+  const originalByteLen = bytes.length;
   // Pad to multiple of 16
   while (bytes.length % 16 !== 0) bytes.push(0);
 
@@ -163,12 +185,12 @@ export function encryptAESLike(data: number[], key: number[]): number[] {
     result.push(...block);
   }
 
-  // Convert back to bits
+  // Convert back to bits — return FULL block-aligned output
   const bits: number[] = [];
   for (const byte of result) {
     for (let i = 7; i >= 0; i--) bits.push((byte >> i) & 1);
   }
-  return bits.slice(0, data.length);
+  return bits;
 }
 
 export function decryptAESLike(data: number[], key: number[]): number[] {
@@ -187,7 +209,7 @@ export function decryptAESLike(data: number[], key: number[]): number[] {
     let block = bytes.slice(blockStart, blockStart + 16);
     for (let round = 3; round >= 0; round--) {
       block = addRoundKey(block, key.map((k, i) => k ^ (round * 16 + i)));
-      if (round < 3) block = mixColumns(block); // simplified inverse
+      if (round < 3) block = invMixColumns(block);
       block = invShiftRows(block);
       block = invSubBytes(block);
     }
