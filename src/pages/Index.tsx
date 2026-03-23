@@ -134,15 +134,19 @@ const Index = () => {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
-    const id = await saveSignal(text, loraParams, cr, duration, signal.symbols.length, signal.symbols, tags, modType);
+    // For non-LoRa protocols, save with protocol-specific sample rate
+    const saveParams = isLoRa
+      ? loraParams
+      : { sf, bw: modType === "cdma" ? 500000 : 200000, fc: 915e6, sampleRate: modType === "cdma" ? 500000 : 200000 };
+    const id = await saveSignal(text, saveParams, cr, duration, signal.symbols.length, signal.symbols, tags, modType);
     setSaving(false);
     if (id) {
-      toast.success(`Сигнал сохранён (${signal.symbols.length} символов)`);
+      toast.success(`Сигнал сохранён (${signal.symbols.length} символов, ${modType.toUpperCase()})`);
       setRefreshKey(k => k + 1);
     } else {
       toast.error("Ошибка сохранения");
     }
-  }, [text, loraParams, cr, duration, signal.symbols, tags, modType]);
+  }, [text, loraParams, cr, duration, signal.symbols, tags, modType, isLoRa, sf]);
 
   const handleSelectFromDB = useCallback((stored: StoredSignal) => {
     setText(stored.message_text);

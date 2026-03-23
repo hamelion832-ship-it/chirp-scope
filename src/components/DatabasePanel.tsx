@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Database, Search, RefreshCw, Trash2, Edit3, Save, X, BarChart3, PieChart, TrendingUp, FileText, AlertTriangle, Check } from "lucide-react";
 import { fetchSignals, deleteSignal, getSignalStats, type StoredSignal } from "@/lib/signal-db";
+import { getProtocolGroup, PROTOCOL_CHART_COLORS } from "@/lib/protocol-classify";
+import type { ModulationType } from "@/lib/modulation-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -17,6 +19,7 @@ export function DatabasePanel() {
   const [signals, setSignals] = useState<StoredSignal[]>([]);
   const [search, setSearch] = useState("");
   const [sfFilter, setSfFilter] = useState<number | undefined>();
+  const [modFilter, setModFilter] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<StoredSignal>>({});
@@ -27,13 +30,13 @@ export function DatabasePanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const [data, s] = await Promise.all([
-      fetchSignals(search || undefined, sfFilter),
+      fetchSignals(search || undefined, sfFilter, modFilter),
       getSignalStats(),
     ]);
     setSignals(data);
     setStats(s);
     setLoading(false);
-  }, [search, sfFilter]);
+  }, [search, sfFilter, modFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -97,6 +100,15 @@ export function DatabasePanel() {
   const bwData = useMemo(() => {
     if (!stats?.bwCounts) return [];
     return Object.entries(stats.bwCounts).map(([k, v]) => ({ name: `${Number(k) / 1000}к`, count: v }));
+  }, [stats]);
+
+  const modTypeData = useMemo(() => {
+    if (!stats?.modTypeCounts) return [];
+    return Object.entries(stats.modTypeCounts).map(([k, v]) => ({
+      name: k.toUpperCase(),
+      count: v,
+      color: PROTOCOL_CHART_COLORS[k] ?? "hsl(215 15% 55%)",
+    }));
   }, [stats]);
 
   const tagData = useMemo(() => {
@@ -170,6 +182,14 @@ export function DatabasePanel() {
           className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-[10px] font-mono border border-border">
           <option value="">Все SF</option>
           {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF{v}</option>)}
+        </select>
+
+        <select value={modFilter ?? ""} onChange={e => setModFilter(e.target.value || undefined)}
+          className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-[10px] font-mono border border-border">
+          <option value="">Все протоколы</option>
+          {["lora", "bpsk", "qpsk", "8psk", "2fsk", "4fsk", "cdma"].map(v => (
+            <option key={v} value={v}>{v.toUpperCase()}</option>
+          ))}
         </select>
 
         <button onClick={load} className="p-1.5 rounded hover:bg-secondary transition-colors border border-border">
@@ -276,10 +296,25 @@ export function DatabasePanel() {
                     ) : (
                       <>
                         <td className="p-1.5 text-foreground max-w-[200px] truncate" title={sig.message_text}>{sig.message_text}</td>
-                        <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-cyan/10 text-signal-cyan rounded text-[9px] uppercase">{sig.mod_type || 'lora'}</span></td>
-                        <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-green/10 text-signal-green rounded text-[9px]">SF{sig.sf}</span></td>
-                        <td className="p-1.5 text-muted-foreground">{sig.bw / 1000}к</td>
-                        <td className="p-1.5 text-muted-foreground">{sig.cr}</td>
+                        <td className="p-1.5">
+                          {(() => {
+                            const mt = (sig.mod_type || 'lora') as ModulationType;
+                            const g = getProtocolGroup(mt);
+                            return <span className={`px-1 py-0.5 rounded text-[9px] uppercase bg-${g.color}/10 text-${g.color} border border-${g.color}/20`}>{mt}</span>;
+                          })()}
+                        </td>
+                        <td className="p-1.5">
+                          {(sig.mod_type || 'lora') === 'lora' 
+                            ? <span className="px-1 py-0.5 bg-signal-green/10 text-signal-green rounded text-[9px]">SF{sig.sf}</span>
+                            : <span className="text-muted-foreground/50">—</span>
+                          }
+                        </td>
+                        <td className="p-1.5 text-muted-foreground">
+                          {(sig.mod_type || 'lora') === 'lora' ? `${sig.bw / 1000}к` : '—'}
+                        </td>
+                        <td className="p-1.5 text-muted-foreground">
+                          {(sig.mod_type || 'lora') === 'lora' ? sig.cr : '—'}
+                        </td>
                         <td className="p-1.5 text-muted-foreground">{sig.n_symbols}</td>
                         <td className="p-1.5 text-muted-foreground">{(sig.duration * 1000).toFixed(1)}</td>
                         <td className="p-1.5">
@@ -319,8 +354,8 @@ export function DatabasePanel() {
               {[
                 { label: "Всего сигналов", value: stats?.total ?? 0, color: "text-signal-green" },
                 { label: "Ср. длина текста", value: stats?.avgLength?.toFixed(0) ?? "—", color: "text-signal-cyan" },
-                { label: "Уникальных SF", value: stats?.sfCounts ? Object.keys(stats.sfCounts).length : 0, color: "text-signal-amber" },
-                { label: "Уникальных BW", value: stats?.bwCounts ? Object.keys(stats.bwCounts).length : 0, color: "text-signal-magenta" },
+                { label: "Протоколов", value: stats?.modTypeCounts ? Object.keys(stats.modTypeCounts).length : 0, color: "text-signal-amber" },
+                { label: "Уникальных SF", value: stats?.sfCounts ? Object.keys(stats.sfCounts).length : 0, color: "text-signal-magenta" },
               ].map((item, i) => (
                 <div key={i} className="bg-secondary rounded-lg p-2.5 border border-border">
                   <p className="text-[9px] font-mono text-muted-foreground">{item.label}</p>
@@ -328,6 +363,22 @@ export function DatabasePanel() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Protocol distribution */}
+          <div className="chart-panel">
+            <h4 className="text-xs font-mono font-semibold text-foreground mb-2">Распределение по протоколу</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={modTypeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                <XAxis dataKey="name" tick={chartLabelStyle} />
+                <YAxis tick={chartLabelStyle} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 10, fontFamily: "monospace", background: "hsl(0 0% 98%)", border: "1px solid hsl(220 13% 90%)" }} />
+                <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                  {modTypeData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
           {/* SF distribution bar chart */}
