@@ -194,6 +194,12 @@ export function DatabasePanel() {
           ))}
         </select>
 
+        <select value={encFilter ?? ""} onChange={e => setEncFilter(e.target.value || undefined)}
+          className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-[10px] font-mono border border-border">
+          <option value="">Все шифр.</option>
+          {ENCRYPTION_REGISTRY.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+        </select>
+
         <button onClick={load} className="p-1.5 rounded hover:bg-secondary transition-colors border border-border">
           <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
         </button>
