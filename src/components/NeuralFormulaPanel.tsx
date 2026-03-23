@@ -403,6 +403,16 @@ export function NeuralFormulaPanel() {
         {/* Signal selection */}
         <div className="chart-panel lg:col-span-1 flex flex-col" style={{ maxHeight: 520, overflowY: "auto" }}>
           <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2">Выборка сигналов</h3>
+          {results.has("__unified__") && (
+            <div
+              className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-1
+                ${activeSignalId === "__unified__" ? "bg-signal-magenta/20 border border-signal-magenta/30" : "hover:bg-secondary border border-transparent"}`}
+              onClick={() => setActiveSignalId("__unified__")}>
+              <BarChart3 className="w-3 h-3 text-signal-magenta" />
+              <span className="flex-1 text-signal-magenta font-semibold">Единая модель ({selected.length} сиг.)</span>
+              <CheckCircle2 className="w-3 h-3 text-signal-green" />
+            </div>
+          )}
           {signals.length === 0 && (
             <p className="text-[10px] font-mono text-muted-foreground">Нет сигналов в БД</p>
           )}
