@@ -135,6 +135,10 @@ export function InverseModelPanel() {
         ? Math.max(1, Math.floor((Math.min(new TextEncoder().encode(activeDbSignal.message_text).length, 1240) * 8) / activeDbSignal.sf))
         : getMaxSymbols(activeDbSignal.message_text, storedModType);
       setNumSymbols(Math.min(activeDbSignal.n_symbols, storedMax));
+      if (activeDbSignal.encryption_type) setEncType(activeDbSignal.encryption_type as EncryptionType);
+      if (activeDbSignal.symbol_rate) setSymbolRate(activeDbSignal.symbol_rate);
+      if (activeDbSignal.freq_deviation) setFreqDeviation(activeDbSignal.freq_deviation);
+      if (activeDbSignal.chip_rate) setChipRate(activeDbSignal.chip_rate);
     }
   }, [activeDbSignal]);
 
