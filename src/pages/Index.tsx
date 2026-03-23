@@ -145,6 +145,9 @@ const Index = () => {
           <TabsTrigger value="neural" className="font-mono text-xs data-[state=active]:text-signal-cyan">
             <Brain className="w-3 h-3 mr-1.5" /> Нейронная формула
           </TabsTrigger>
+          <TabsTrigger value="unified" className="font-mono text-xs data-[state=active]:text-signal-magenta">
+            <Radar className="w-3 h-3 mr-1.5" /> Единая модель
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard">
