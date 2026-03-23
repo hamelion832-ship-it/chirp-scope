@@ -432,7 +432,20 @@ export function DatabasePanel() {
             </ResponsiveContainer>
           </div>
 
-          {/* Tags pie chart */}
+          {/* Encryption distribution */}
+          <div className="chart-panel">
+            <h4 className="text-xs font-mono font-semibold text-foreground mb-2 flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-signal-amber" /> Шифрование</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={encTypeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                <XAxis dataKey="name" tick={chartLabelStyle} />
+                <YAxis tick={chartLabelStyle} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 10, fontFamily: "monospace", background: "hsl(0 0% 98%)", border: "1px solid hsl(220 13% 90%)" }} />
+                <Bar dataKey="count" fill="hsl(35 92% 48%)" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
           <div className="chart-panel">
             <h4 className="text-xs font-mono font-semibold text-foreground mb-2">Теги</h4>
             <ResponsiveContainer width="100%" height={180}>
