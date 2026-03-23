@@ -64,41 +64,63 @@ export function InverseModelPanel() {
   const [classicResults, setClassicResults] = useState<Record<string, ClassicDecodedResult>>({});
   const [textComparison, setTextComparison] = useState<Record<string, ReturnType<typeof compareTexts>>>({});
 
-  // DB selection
-  const [dbSignalId, setDbSignalId] = useState<string | undefined>();
+  // DB selection — multi-select
+  const [dbSignals, setDbSignals] = useState<StoredSignal[]>([]);
+  const [dbSelectedIds, setDbSelectedIds] = useState<string[]>([]);
   const [showDB, setShowDB] = useState(false);
+  const [signalSourceMode, setSignalSourceMode] = useState<SignalSourceMode>("manual");
 
-  // Signal generation
+  // Load DB signals for unified model source
+  useEffect(() => {
+    fetchSignals().then(setDbSignals);
+  }, []);
+
+  const handleToggleDbSignal = useCallback((stored: StoredSignal) => {
+    setDbSelectedIds(prev =>
+      prev.includes(stored.id) ? prev.filter(x => x !== stored.id) : [...prev, stored.id]
+    );
+  }, []);
+
+  // When DB signals selected, use first one's params for signal generation
+  const activeDbSignal = useMemo(() => {
+    if (signalSourceMode !== "db" || dbSelectedIds.length === 0) return null;
+    return dbSignals.find(s => dbSelectedIds.includes(s.id)) ?? null;
+  }, [signalSourceMode, dbSelectedIds, dbSignals]);
+
+  // Apply first selected DB signal params
+  useEffect(() => {
+    if (activeDbSignal) {
+      setText(activeDbSignal.message_text);
+      setSf(activeDbSignal.sf);
+      setBw(activeDbSignal.bw / 1000);
+      const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(activeDbSignal.message_text).length, 1240) * 8) / activeDbSignal.sf));
+      setNumSymbols(Math.min(activeDbSignal.n_symbols, storedMax));
+    }
+  }, [activeDbSignal]);
+
+  // Signal generation — merge multiple DB signals for training
   const signal = useMemo(() => {
     const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
     return generateLoRaSignal(params, text, numSymbols);
   }, [sf, bw, text, numSymbols]);
 
-  const noisySignal = useMemo(() => {
-    if (noiseLevel === 0) return signal;
-    const real = signal.real.map(v => v + (Math.random() - 0.5) * noiseLevel * 2);
-    const imag = signal.imag.map(v => v + (Math.random() - 0.5) * noiseLevel * 2);
-    return { ...signal, real, imag };
-  }, [signal, noiseLevel]);
-
-  const M = 2 ** sf;
-  const samplesPerSymbol = Math.floor(500e3 * (M / (bw * 1000)));
-
-  // Load from DB
-  const handleSelectFromDB = useCallback((stored: StoredSignal) => {
-    setText(stored.message_text);
-    setSf(stored.sf);
-    setBw(stored.bw / 1000);
-    const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(stored.message_text).length, 1240) * 8) / stored.sf));
-    setNumSymbols(Math.min(stored.n_symbols, storedMax));
-    setDbSignalId(stored.id);
-    // Clear previous results
-    setMlpTrain(null);
-    setMlpResult(null);
-    setClassicResults({});
-    setTextComparison({});
-    toast.info(`Загружен: "${stored.message_text.slice(0, 30)}…"`);
-  }, []);
+  // Build merged training signal from multiple DB entries
+  const mergedTrainingSignals = useMemo(() => {
+    if (signalSourceMode !== "db" || dbSelectedIds.length <= 1) return null;
+    return dbSelectedIds.map(id => {
+      const stored = dbSignals.find(s => s.id === id);
+      if (!stored) return null;
+      const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
+      const byteLen = new TextEncoder().encode(stored.message_text).length;
+      const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
+      return {
+        signal: generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym)),
+        text: stored.message_text,
+        sf: stored.sf,
+        bw: stored.bw,
+      };
+    }).filter(Boolean) as { signal: ReturnType<typeof generateLoRaSignal>; text: string; sf: number; bw: number }[];
+  }, [signalSourceMode, dbSelectedIds, dbSignals]);
 
   // MLP training
   const handleTrainMLP = useCallback(async () => {
