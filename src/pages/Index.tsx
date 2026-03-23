@@ -142,7 +142,7 @@ const Index = () => {
     } else {
       toast.error("Ошибка сохранения");
     }
-  }, [text, loraParams, cr, duration, signal.symbols, tags]);
+  }, [text, loraParams, cr, duration, signal.symbols, tags, modType]);
 
   const handleSelectFromDB = useCallback((stored: StoredSignal) => {
     setText(stored.message_text);
