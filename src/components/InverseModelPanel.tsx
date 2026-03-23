@@ -472,7 +472,7 @@ export function InverseModelPanel() {
                 <Zap className="w-3 h-3" /> Сигнал
               </h3>
               <div className="space-y-1.5">
-                {([
+                {isLoRa && ([
                   ["SF", sf, (v: number) => setSf(v), [7, 8, 9, 10]],
                   ["BW кГц", bw, (v: number) => setBw(v), [125, 250, 500]],
                 ] as [string, number, (v: number) => void, number[]][]).map(([label, val, setter, opts]) => (
@@ -484,6 +484,29 @@ export function InverseModelPanel() {
                     </select>
                   </div>
                 ))}
+                {!isLoRa && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">Symbol Rate</span>
+                    <select value={symbolRate} onChange={e => setSymbolRate(Number(e.target.value))}
+                      className="bg-secondary text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono border border-border">
+                      {[1000, 5000, 10000, 20000].map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                )}
+                {["2fsk", "4fsk"].includes(modType) && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">Девиация</span>
+                    <input type="number" value={freqDeviation} onChange={e => setFreqDeviation(Number(e.target.value))}
+                      className="bg-secondary text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono border border-border w-20 text-right" />
+                  </div>
+                )}
+                {modType === "cdma" && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">Chip Rate</span>
+                    <input type="number" value={chipRate} onChange={e => setChipRate(Number(e.target.value))}
+                      className="bg-secondary text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono border border-border w-20 text-right" />
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-[10px] font-mono">
                   <span className="text-muted-foreground">Символов: {numSymbols}/{maxSymbols}</span>
                   <input type="range" min={1} max={maxSymbols} value={Math.min(numSymbols, maxSymbols)}
