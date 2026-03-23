@@ -71,10 +71,13 @@ export function decryptXOR(data: number[], key: number): number[] {
 // ─── AES-like Block Cipher (simplified) ───
 
 const SBOX: number[] = (() => {
-  // Simplified S-box (Rijndael-inspired permutation)
-  const s = new Array(256);
-  for (let i = 0; i < 256; i++) {
-    s[i] = ((i * 31 + 17) ^ ((i >>> 4) | (i << 4))) & 0xFF;
+  // Build a proper permutation via seeded Fisher-Yates shuffle
+  const s = Array.from({ length: 256 }, (_, i) => i);
+  let seed = 0xDEAD;
+  const rand = () => { seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF; return seed; };
+  for (let i = 255; i > 0; i--) {
+    const j = rand() % (i + 1);
+    [s[i], s[j]] = [s[j], s[i]];
   }
   return s;
 })();
