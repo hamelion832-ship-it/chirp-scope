@@ -301,7 +301,8 @@ export function assessSecurity(params: {
   const recommendations: string[] = [];
   if (protName === "lora" && sf < 10) recommendations.push(`Увеличить SF до 10-12 (текущий M=${2 ** sf}, SF12→M=4096)`);
   if (noiseLevel < 0.1) recommendations.push("Добавить искусственный шум или использовать сигнал с более высоким SNR-порогом");
-  if (bestCharAcc > 0.5) recommendations.push("Применить шифрование данных перед модуляцией (AES-128/256)");
+  if (bestCharAcc > 0.5 && encStr < 30) recommendations.push("Применить шифрование данных перед модуляцией (AES-128/256)");
+  if (encStr > 0 && encStr < 50) recommendations.push(`Текущее шифрование (${encryptionType}) недостаточно стойкое — рассмотреть AES-подобное`);
   if (bestSymAcc > 0.7) recommendations.push("Использовать frequency hopping (FHSS) для маскировки структуры символов");
   if (consistencyAcrossDecoders > 0.5) recommendations.push("Добавить interleaving и scrambling для снижения корреляций");
   if (reconScore > 70) recommendations.push("Высокое качество реконструкции s'(t) — структура сигнала раскрыта, рассмотреть физический уровень защиты");
