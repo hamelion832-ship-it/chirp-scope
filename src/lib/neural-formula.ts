@@ -339,8 +339,8 @@ export function compareCoefficients(
   a: FormulaCoefficients,
   b: FormulaCoefficients
 ): Record<string, number> {
-  const aRec = a as Record<string, number>;
-  const bRec = b as Record<string, number>;
+  const aRec = a as unknown as Record<string, number>;
+  const bRec = b as unknown as Record<string, number>;
   const keys = Object.keys(aRec);
   const result: Record<string, number> = {};
   for (const k of keys) {
