@@ -3,11 +3,15 @@ import { Database, Search, RefreshCw, Check, ChevronRight } from "lucide-react";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 
 interface SignalDBBrowserProps {
-  onSelectSignal: (signal: StoredSignal) => void;
+  onSelectSignal?: (signal: StoredSignal) => void;
   selectedId?: string;
+  // Multi-select mode
+  multiSelect?: boolean;
+  selectedIds?: string[];
+  onToggleSignal?: (signal: StoredSignal) => void;
 }
 
-export function SignalDBBrowser({ onSelectSignal, selectedId }: SignalDBBrowserProps) {
+export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selectedIds, onToggleSignal }: SignalDBBrowserProps) {
   const [signals, setSignals] = useState<StoredSignal[]>([]);
   const [search, setSearch] = useState("");
   const [sfFilter, setSfFilter] = useState<number | undefined>();
@@ -22,13 +26,31 @@ export function SignalDBBrowser({ onSelectSignal, selectedId }: SignalDBBrowserP
 
   useEffect(() => { load(); }, [load]);
 
+  const isSelected = (id: string) => {
+    if (multiSelect) return selectedIds?.includes(id) ?? false;
+    return selectedId === id;
+  };
+
+  const handleClick = (sig: StoredSignal) => {
+    if (multiSelect && onToggleSignal) {
+      onToggleSignal(sig);
+    } else if (onSelectSignal) {
+      onSelectSignal(sig);
+    }
+  };
+
   return (
     <div className="chart-panel flex flex-col h-full">
       <div className="flex items-center gap-2 mb-2">
         <Database className="w-4 h-4 text-signal-amber" />
         <h3 className="text-xs font-mono font-semibold text-signal-amber">
-          Выбор сигнала из БД
+          {multiSelect ? "Выбор сигналов из БД" : "Выбор сигнала из БД"}
         </h3>
+        {multiSelect && selectedIds && selectedIds.length > 0 && (
+          <span className="text-[9px] font-mono text-signal-green bg-signal-green/10 px-1.5 py-0.5 rounded">
+            {selectedIds.length} выбр.
+          </span>
+        )}
         <button onClick={load} className="ml-auto p-1 rounded hover:bg-secondary transition-colors">
           <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -56,13 +78,15 @@ export function SignalDBBrowser({ onSelectSignal, selectedId }: SignalDBBrowserP
         )}
         {signals.map(sig => (
           <div key={sig.id}
-            onClick={() => onSelectSignal(sig)}
+            onClick={() => handleClick(sig)}
             className={`group flex items-center gap-2 p-1.5 rounded border cursor-pointer transition-all text-[10px] font-mono ${
-              selectedId === sig.id
+              isSelected(sig.id)
                 ? "border-signal-green/50 bg-signal-green/10"
                 : "border-border/50 hover:border-signal-cyan/30 hover:bg-secondary/50"
             }`}>
-            {selectedId === sig.id ? (
+            {multiSelect ? (
+              <input type="checkbox" checked={isSelected(sig.id)} readOnly className="accent-signal-green w-3 h-3 shrink-0" />
+            ) : isSelected(sig.id) ? (
               <Check className="w-3 h-3 text-signal-green shrink-0" />
             ) : (
               <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100" />

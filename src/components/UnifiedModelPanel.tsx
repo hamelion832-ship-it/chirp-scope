@@ -107,9 +107,18 @@ export function UnifiedModelPanel() {
         if (signalSource === "fhss") {
           samples = buildFHSSSamples().samples;
         } else {
-          const stored = signals.find(s => s.id === selectedDbIds[0]);
-          if (!stored) { toast.error("Выберите сигнал"); setTraining(false); return; }
-          samples = buildDbSamples(stored);
+          // Merge samples from all selected DB signals
+          if (selectedDbIds.length === 0) { toast.error("Выберите сигналы"); setTraining(false); return; }
+          samples = [];
+          for (const id of selectedDbIds) {
+            const stored = signals.find(s => s.id === id);
+            if (stored) {
+              const dbSamples = buildDbSamples(stored);
+              const offset = samples.length > 0 ? samples[samples.length - 1].t + 0.1 : 0;
+              samples.push(...dbSamples.map(s => ({ t: s.t + offset, y: s.y })));
+            }
+          }
+          if (samples.length === 0) { toast.error("Нет данных"); setTraining(false); return; }
         }
 
         const res = trainUnifiedFormula(samples, config, undefined, (ep, loss) => {
@@ -371,16 +380,23 @@ export function UnifiedModelPanel() {
             </div>
           ) : (
             <div className="chart-panel" style={{ maxHeight: 400, overflowY: "auto" }}>
-              <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2">Сигналы из БД</h3>
+              <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2 flex items-center gap-2">
+                Сигналы из БД
+                {selectedDbIds.length > 0 && (
+                  <span className="text-[9px] text-signal-green bg-signal-green/10 px-1.5 py-0.5 rounded">
+                    {selectedDbIds.length} выбр.
+                  </span>
+                )}
+              </h3>
               {signals.map(s => (
                 <div key={s.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-0.5 ${
                     selectedDbIds.includes(s.id) ? "bg-signal-cyan/20 border border-signal-cyan/30" : "hover:bg-secondary"
                   }`}
                   onClick={() => setSelectedDbIds(prev =>
-                    prev.includes(s.id) ? prev.filter(x => x !== s.id) : [s.id]
+                    prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]
                   )}>
-                  <input type="radio" checked={selectedDbIds.includes(s.id)} readOnly className="accent-signal-cyan w-3 h-3" />
+                  <input type="checkbox" checked={selectedDbIds.includes(s.id)} readOnly className="accent-signal-cyan w-3 h-3" />
                   <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 28)}</span>
                   <span className="text-muted-foreground">SF{s.sf}</span>
                 </div>

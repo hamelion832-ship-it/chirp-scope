@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, RotateCcw,
-  ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database,
+  ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database, Radar,
 } from "lucide-react";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
@@ -13,7 +13,7 @@ import {
   decodeCorrelation, decodeEnergy, decodeTemplate,
 } from "@/lib/inverse-decoders";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
-import type { StoredSignal } from "@/lib/signal-db";
+import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -31,6 +31,7 @@ const DECODER_ICONS: Record<string, React.ElementType> = {
   Brain, Waves, Zap, Copy,
 };
 
+type SignalSourceMode = "manual" | "db" | "unified";
 type AnyResult = { method: DecoderType; symbols: number[]; confidence: number[]; decodedText: string; processingTimeMs?: number };
 
 export function InverseModelPanel() {
@@ -63,15 +64,63 @@ export function InverseModelPanel() {
   const [classicResults, setClassicResults] = useState<Record<string, ClassicDecodedResult>>({});
   const [textComparison, setTextComparison] = useState<Record<string, ReturnType<typeof compareTexts>>>({});
 
-  // DB selection
-  const [dbSignalId, setDbSignalId] = useState<string | undefined>();
+  // DB selection — multi-select
+  const [dbSignals, setDbSignals] = useState<StoredSignal[]>([]);
+  const [dbSelectedIds, setDbSelectedIds] = useState<string[]>([]);
   const [showDB, setShowDB] = useState(false);
+  const [signalSourceMode, setSignalSourceMode] = useState<SignalSourceMode>("manual");
 
-  // Signal generation
+  // Load DB signals for unified model source
+  useEffect(() => {
+    fetchSignals().then(setDbSignals);
+  }, []);
+
+  const handleToggleDbSignal = useCallback((stored: StoredSignal) => {
+    setDbSelectedIds(prev =>
+      prev.includes(stored.id) ? prev.filter(x => x !== stored.id) : [...prev, stored.id]
+    );
+  }, []);
+
+  // When DB signals selected, use first one's params for signal generation
+  const activeDbSignal = useMemo(() => {
+    if (signalSourceMode !== "db" || dbSelectedIds.length === 0) return null;
+    return dbSignals.find(s => dbSelectedIds.includes(s.id)) ?? null;
+  }, [signalSourceMode, dbSelectedIds, dbSignals]);
+
+  // Apply first selected DB signal params
+  useEffect(() => {
+    if (activeDbSignal) {
+      setText(activeDbSignal.message_text);
+      setSf(activeDbSignal.sf);
+      setBw(activeDbSignal.bw / 1000);
+      const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(activeDbSignal.message_text).length, 1240) * 8) / activeDbSignal.sf));
+      setNumSymbols(Math.min(activeDbSignal.n_symbols, storedMax));
+    }
+  }, [activeDbSignal]);
+
+  // Signal generation — merge multiple DB signals for training
   const signal = useMemo(() => {
     const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
     return generateLoRaSignal(params, text, numSymbols);
   }, [sf, bw, text, numSymbols]);
+
+  // Build merged training signal from multiple DB entries
+  const mergedTrainingSignals = useMemo(() => {
+    if (signalSourceMode !== "db" || dbSelectedIds.length <= 1) return null;
+    return dbSelectedIds.map(id => {
+      const stored = dbSignals.find(s => s.id === id);
+      if (!stored) return null;
+      const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
+      const byteLen = new TextEncoder().encode(stored.message_text).length;
+      const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
+      return {
+        signal: generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym)),
+        text: stored.message_text,
+        sf: stored.sf,
+        bw: stored.bw,
+      };
+    }).filter(Boolean) as { signal: ReturnType<typeof generateLoRaSignal>; text: string; sf: number; bw: number }[];
+  }, [signalSourceMode, dbSelectedIds, dbSignals]);
 
   const noisySignal = useMemo(() => {
     if (noiseLevel === 0) return signal;
@@ -83,23 +132,6 @@ export function InverseModelPanel() {
   const M = 2 ** sf;
   const samplesPerSymbol = Math.floor(500e3 * (M / (bw * 1000)));
 
-  // Load from DB
-  const handleSelectFromDB = useCallback((stored: StoredSignal) => {
-    setText(stored.message_text);
-    setSf(stored.sf);
-    setBw(stored.bw / 1000);
-    const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(stored.message_text).length, 1240) * 8) / stored.sf));
-    setNumSymbols(Math.min(stored.n_symbols, storedMax));
-    setDbSignalId(stored.id);
-    // Clear previous results
-    setMlpTrain(null);
-    setMlpResult(null);
-    setClassicResults({});
-    setTextComparison({});
-    toast.info(`Загружен: "${stored.message_text.slice(0, 30)}…"`);
-  }, []);
-
-  // MLP training
   const handleTrainMLP = useCallback(async () => {
     setTraining(true);
     setProgress(0);
@@ -229,10 +261,29 @@ export function InverseModelPanel() {
           <span className="text-sm font-mono font-semibold text-foreground">
             Обратное преобразование: s(t) → текст
           </span>
-          <button onClick={() => setShowDB(!showDB)}
-            className="ml-auto flex items-center gap-1 text-[10px] font-mono text-signal-amber hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:border-signal-amber/30">
-            <Database className="w-3 h-3" /> {showDB ? "Скрыть БД" : "Из базы данных"}
-          </button>
+          <div className="ml-auto flex gap-1">
+            {([
+              ["manual", "Ручной ввод", "signal-green"],
+              ["db", "Из БД", "signal-amber"],
+              ["unified", "Единая модель", "signal-magenta"],
+            ] as [SignalSourceMode, string, string][]).map(([mode, label, color]) => (
+              <button key={mode}
+                onClick={() => {
+                  setSignalSourceMode(mode);
+                  if (mode === "db") setShowDB(true);
+                  else setShowDB(false);
+                }}
+                className={`flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border transition-colors ${
+                  signalSourceMode === mode
+                    ? `bg-${color}/20 text-${color} border-${color}/40`
+                    : "bg-secondary text-muted-foreground border-border"
+                }`}>
+                {mode === "db" && <Database className="w-3 h-3" />}
+                {mode === "unified" && <Radar className="w-3 h-3" />}
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         {/* Decoder type selector */}
         <div className="flex flex-wrap gap-1.5">
@@ -307,7 +358,11 @@ export function InverseModelPanel() {
             {/* DB browser */}
             {showDB && (
               <div style={{ minHeight: 300 }}>
-                <SignalDBBrowser onSelectSignal={handleSelectFromDB} selectedId={dbSignalId} />
+                <SignalDBBrowser
+                  multiSelect
+                  selectedIds={dbSelectedIds}
+                  onToggleSignal={handleToggleDbSignal}
+                />
               </div>
             )}
           </div>
@@ -407,7 +462,7 @@ export function InverseModelPanel() {
           <div className="chart-panel" style={{ height: 170 }}>
             <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">
               Сигнал{noiseLevel > 0 ? ` (σ=${(noiseLevel * 100).toFixed(0)}%)` : " (чистый)"}
-              {dbSignalId && <span className="text-signal-amber ml-2">[из БД]</span>}
+              {dbSelectedIds.length > 0 && <span className="text-signal-amber ml-2">[из БД: {dbSelectedIds.length}]</span>}
             </h3>
             <ResponsiveContainer width="100%" height="85%">
               <LineChart data={signalPreview}>
