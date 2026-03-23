@@ -267,6 +267,10 @@ const Index = () => {
         <TabsContent value="unified">
           <UnifiedModelPanel />
         </TabsContent>
+
+        <TabsContent value="inverse">
+          <InverseModelPanel />
+        </TabsContent>
       </Tabs>
     </div>
   );
