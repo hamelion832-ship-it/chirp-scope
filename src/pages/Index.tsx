@@ -109,8 +109,8 @@ const Index = () => {
   }, [signal]);
 
   const spectrum = useMemo(() =>
-    computeSpectrum(signal.real, signal.imag, params.sampleRate, 512),
-    [signal, params.sampleRate]
+    computeSpectrum(signal.real, signal.imag, loraParams.sampleRate, 512),
+    [signal, loraParams.sampleRate]
   );
 
   const spectrumData = useMemo(() =>
@@ -124,8 +124,8 @@ const Index = () => {
   );
 
   const spectrogram = useMemo(() =>
-    computeSpectrogram(signal.real, signal.imag, params.sampleRate, 64, 16),
-    [signal, params.sampleRate]
+    computeSpectrogram(signal.real, signal.imag, loraParams.sampleRate, 64, 16),
+    [signal, loraParams.sampleRate]
   );
 
   const iqPoints = useMemo(() => getIQPoints(signal.real, signal.imag, 8, 300), [signal]);
@@ -133,7 +133,7 @@ const Index = () => {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
-    const id = await saveSignal(text, params, cr, duration, signal.symbols.length, signal.symbols, tags);
+    const id = await saveSignal(text, loraParams, cr, duration, signal.symbols.length, signal.symbols, tags);
     setSaving(false);
     if (id) {
       toast.success(`Сигнал сохранён (${signal.symbols.length} символов)`);
