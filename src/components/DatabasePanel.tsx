@@ -69,7 +69,8 @@ export function DatabasePanel() {
       sf: editData.sf,
       bw: editData.bw,
       cr: editData.cr,
-    }).eq("id", editingId);
+      mod_type: editData.mod_type,
+    } as any).eq("id", editingId);
     if (error) { toast.error("Ошибка: " + error.message); return; }
     toast.success("Обновлено");
     setEditingId(null);
