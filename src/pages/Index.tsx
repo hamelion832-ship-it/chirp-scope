@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Radio, Activity, Waves, Zap, Save, Tag, Brain, Radar, RotateCcw, Database } from "lucide-react";
+import { Radio, Activity, Waves, Zap, Save, Tag, Brain, Radar, RotateCcw, Database, Lock } from "lucide-react";
 import { ChartPanel } from "@/components/ChartPanel";
 import { SpectrogramPanel } from "@/components/SpectrogramPanel";
 import { IQPanel } from "@/components/IQPanel";
@@ -12,7 +12,12 @@ import { UnifiedModelPanel } from "@/components/UnifiedModelPanel";
 import { InverseModelPanel } from "@/components/InverseModelPanel";
 import { DatabasePanel } from "@/components/DatabasePanel";
 import { ProtocolSelector } from "@/components/ProtocolSelector";
+import { FieldTooltip, FIELD_TOOLTIPS } from "@/components/FieldTooltip";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
+import {
+  ENCRYPTION_REGISTRY, type EncryptionType, type EncryptionConfig,
+  DEFAULT_ENCRYPTION_CONFIG, encryptBits,
+} from "@/lib/encryption-engine";
 import { toast } from "sonner";
 import {
   generateLoRaSignal,
@@ -44,6 +49,9 @@ const Index = () => {
   const [symbolRate, setSymbolRate] = useState(10000);
   const [freqDeviation, setFreqDeviation] = useState(25000);
   const [chipRate, setChipRate] = useState(100000);
+  // Encryption
+  const [encType, setEncType] = useState<EncryptionType>("none");
+  const [encConfig, setEncConfig] = useState<EncryptionConfig>(DEFAULT_ENCRYPTION_CONFIG);
 
   const isLoRa = modType === "lora";
 
