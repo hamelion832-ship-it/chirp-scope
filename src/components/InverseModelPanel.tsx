@@ -163,17 +163,50 @@ export function InverseModelPanel() {
     return { ...signal, real, imag };
   }, [signal, noiseLevel]);
 
-  const M = 2 ** sf;
-  const samplesPerSymbol = Math.floor(500e3 * (M / (bw * 1000)));
+  const meta = MODULATION_REGISTRY.find(m => m.id === modType)!;
+  const bitsPerSym = isLoRa ? sf : meta.bitsPerSymbol;
+  const M = isLoRa ? 2 ** sf : 2 ** bitsPerSym;
+  const sampleRate = isLoRa ? 500e3 : (modType === "cdma" ? 500000 : 200000);
+  const samplesPerSymbol = isLoRa
+    ? Math.floor(500e3 * (M / (bw * 1000)))
+    : Math.floor(sampleRate / symbolRate);
 
   // Run reconstruction whenever we have a result
   const runReconstruction = useCallback((decodedSymbols: number[]) => {
-    const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
-    const recon = reconstructFromSymbols(decodedSymbols, params);
-    const cmp = compareSignals(signal, recon);
-    setReconstruction(cmp);
-    return cmp;
-  }, [sf, bw, signal]);
+    if (isLoRa) {
+      const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
+      const recon = reconstructFromSymbols(decodedSymbols, params);
+      const cmp = compareSignals(signal, recon);
+      setReconstruction(cmp);
+      return cmp;
+    }
+    // Non-LoRa: reconstruct and compare
+    const modParams: ModulationParams = {
+      type: modType, sampleRate, symbolRate, fc: 915e6, freqDeviation, chipRate, spreadingCode: 0,
+    };
+    const recon = reconstructProtocolSignal(decodedSymbols, modParams);
+    const len = Math.min(signal.real.length, recon.real.length);
+    const errorReal = new Array(len);
+    const errorImag = new Array(len);
+    let sumErr2 = 0, sumOrig2 = 0, peakError = 0;
+    let sumOR = 0, sumO = 0, sumR = 0, sumO2 = 0, sumR2 = 0;
+    for (let i = 0; i < len; i++) {
+      const er = signal.real[i] - recon.real[i];
+      const ei = signal.imag[i] - recon.imag[i];
+      errorReal[i] = er; errorImag[i] = ei;
+      sumErr2 += er*er + ei*ei;
+      sumOrig2 += signal.real[i]**2 + signal.imag[i]**2;
+      peakError = Math.max(peakError, Math.sqrt(er*er + ei*ei));
+      sumOR += signal.real[i]*recon.real[i]; sumO += signal.real[i]; sumR += recon.real[i];
+      sumO2 += signal.real[i]**2; sumR2 += recon.real[i]**2;
+    }
+    const mse = sumErr2 / (len || 1);
+    const snrDb = sumErr2 > 0 ? 10*Math.log10(sumOrig2/sumErr2) : 100;
+    const denom = Math.sqrt((len*sumO2-sumO**2)*(len*sumR2-sumR**2));
+    const correlationCoeff = denom > 0 ? (len*sumOR-sumO*sumR)/denom : 0;
+    setReconstruction({ time: signal.time.slice(0,len), real: recon.real.slice(0,len), imag: recon.imag.slice(0,len), errorReal, errorImag, mse, snrDb, peakError, correlationCoeff });
+    return null;
+  }, [isLoRa, modType, sf, bw, signal, sampleRate, symbolRate, freqDeviation, chipRate]);
 
   // Run security assessment when all results are available
   const runSecurityAssessment = useCallback(() => {
