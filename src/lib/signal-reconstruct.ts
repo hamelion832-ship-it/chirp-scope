@@ -157,6 +157,12 @@ export interface SecurityAssessment {
   summary: string;
   /** Recommendations */
   recommendations: string[];
+  /** Separate signal reconstruction quality 0-100 */
+  signalRecoveryScore: number;
+  /** Separate text decryption quality 0-100 */
+  textDecryptionScore: number;
+  /** Detected protocol class */
+  protocolClass?: string;
 }
 
 interface SecurityFactor {
