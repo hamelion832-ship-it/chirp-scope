@@ -36,9 +36,10 @@ export async function saveSignal(
   duration: number,
   nSymbols: number,
   symbols: number[],
-  tags: string = ""
+  tags: string = "",
+  modType: string = "lora"
 ): Promise<string | null> {
-  const signalHash = hashString(text + JSON.stringify(params));
+  const signalHash = hashString(text + JSON.stringify(params) + modType);
 
   const { data, error } = await supabase
     .from("signals")
@@ -54,7 +55,8 @@ export async function saveSignal(
       n_symbols: nSymbols,
       symbols_preview: symbols.slice(0, 20),
       tags,
-    }, { onConflict: "signal_hash" })
+      mod_type: modType,
+    } as any, { onConflict: "signal_hash" })
     .select("id")
     .maybeSingle();
 
