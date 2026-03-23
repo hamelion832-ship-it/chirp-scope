@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback } from "react";
-import { Radio, Activity, Waves, Zap, Save, Tag } from "lucide-react";
+import { Radio, Activity, Waves, Zap, Save, Tag, Brain } from "lucide-react";
 import { ChartPanel } from "@/components/ChartPanel";
 import { SpectrogramPanel } from "@/components/SpectrogramPanel";
 import { IQPanel } from "@/components/IQPanel";
 import { SymbolsChart } from "@/components/SymbolsChart";
 import { SignalList } from "@/components/SignalList";
 import { StatsPanel } from "@/components/StatsPanel";
+import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
