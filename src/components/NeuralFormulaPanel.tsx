@@ -138,23 +138,47 @@ export function NeuralFormulaPanel() {
     const newResults = new Map<string, TrainingResult>();
     const total = selected.length;
 
-    for (let idx = 0; idx < total; idx++) {
-      const id = selected[idx];
-      const stored = signals.find(s => s.id === id);
-      if (!stored) continue;
-
-      const samples = buildSamples(stored);
+    if (unifiedMode && total > 1) {
+      // Merge all selected signals into one training set
+      let mergedSamples: SignalSample[] = [];
+      for (const id of selected) {
+        const stored = signals.find(s => s.id === id);
+        if (!stored) continue;
+        const samples = buildSamples(stored);
+        const offset = mergedSamples.length > 0 ? mergedSamples[mergedSamples.length - 1].t + 0.1 : 0;
+        mergedSamples.push(...samples.map(s => ({ t: s.t + offset, y: s.y })));
+      }
+      if (mergedSamples.length === 0) { setTraining(false); return; }
       const result = autoFit
-        ? autoFitBest(samples, config)
-        : trainFormula(samples, config, formulaType, undefined, () => {});
-      newResults.set(id, result);
-      setProgress(((idx + 1) / total) * 100);
-      await new Promise(r => setTimeout(r, 10));
-    }
+        ? autoFitBest(mergedSamples, config)
+        : trainFormula(mergedSamples, config, formulaType, undefined, (ep) => setProgress((ep / config.epochs) * 100));
+      // Store unified result under a special key and also under each selected signal
+      const unifiedKey = "__unified__";
+      newResults.set(unifiedKey, result);
+      for (const id of selected) newResults.set(id, result);
+      setResults(newResults);
+      setTraining(false);
+      setActiveSignalId(unifiedKey);
+      toast.success(`Единая модель на ${total} сигналах: R²=${result.r2.toFixed(4)}`);
+    } else {
+      for (let idx = 0; idx < total; idx++) {
+        const id = selected[idx];
+        const stored = signals.find(s => s.id === id);
+        if (!stored) continue;
 
-    setResults(newResults);
-    setTraining(false);
-    if (selected.length > 0) setActiveSignalId(selected[0]);
+        const samples = buildSamples(stored);
+        const result = autoFit
+          ? autoFitBest(samples, config)
+          : trainFormula(samples, config, formulaType, undefined, () => {});
+        newResults.set(id, result);
+        setProgress(((idx + 1) / total) * 100);
+        await new Promise(r => setTimeout(r, 10));
+      }
+
+      setResults(newResults);
+      setTraining(false);
+      if (selected.length > 0) setActiveSignalId(selected[0]);
+    }
   }, [selected, signals, config, buildSamples, formulaType, autoFit]);
 
   const activeResult = activeSignalId ? results.get(activeSignalId) : undefined;
