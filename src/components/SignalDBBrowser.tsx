@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Database, Search, RefreshCw, Check, ChevronRight } from "lucide-react";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
+import { getProtocolGroup } from "@/lib/protocol-classify";
+import type { ModulationType } from "@/lib/modulation-engine";
 
 interface SignalDBBrowserProps {
   onSelectSignal?: (signal: StoredSignal) => void;
   selectedId?: string;
-  // Multi-select mode
   multiSelect?: boolean;
   selectedIds?: string[];
   onToggleSignal?: (signal: StoredSignal) => void;
@@ -15,14 +16,15 @@ export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selec
   const [signals, setSignals] = useState<StoredSignal[]>([]);
   const [search, setSearch] = useState("");
   const [sfFilter, setSfFilter] = useState<number | undefined>();
+  const [modFilter, setModFilter] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const data = await fetchSignals(search || undefined, sfFilter);
+    const data = await fetchSignals(search || undefined, sfFilter, modFilter);
     setSignals(data);
     setLoading(false);
-  }, [search, sfFilter]);
+  }, [search, sfFilter, modFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -59,16 +61,9 @@ export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selec
               className="text-[9px] font-mono text-muted-foreground hover:text-foreground underline">Сброс</button>
           </>
         )}
-        {!multiSelect && (
-          <button onClick={load} className="ml-auto p-1 rounded hover:bg-secondary transition-colors">
-            <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
-          </button>
-        )}
-        {multiSelect && (
-          <button onClick={load} className="p-1 rounded hover:bg-secondary transition-colors">
-            <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
-          </button>
-        )}
+        <button onClick={load} className={`${!multiSelect ? 'ml-auto' : ''} p-1 rounded hover:bg-secondary transition-colors`}>
+          <RefreshCw className={`w-3 h-3 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
       <div className="flex gap-1.5 mb-2">
@@ -79,9 +74,16 @@ export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selec
             className="w-full bg-secondary text-secondary-foreground rounded pl-7 pr-2 py-1 text-[10px] font-mono border border-border focus:ring-1 focus:ring-ring outline-none" />
         </div>
         <select value={sfFilter ?? ""} onChange={e => setSfFilter(e.target.value ? Number(e.target.value) : undefined)}
-          className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-[10px] font-mono border border-border">
+          className="bg-secondary text-secondary-foreground rounded px-1.5 py-1 text-[10px] font-mono border border-border">
           <option value="">SF</option>
           {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select value={modFilter ?? ""} onChange={e => setModFilter(e.target.value || undefined)}
+          className="bg-secondary text-secondary-foreground rounded px-1.5 py-1 text-[10px] font-mono border border-border">
+          <option value="">Все</option>
+          {["lora", "bpsk", "qpsk", "8psk", "2fsk", "4fsk", "cdma"].map(v => (
+            <option key={v} value={v}>{v.toUpperCase()}</option>
+          ))}
         </select>
       </div>
 
@@ -91,29 +93,40 @@ export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selec
             {loading ? "Загрузка..." : "Нет сигналов"}
           </p>
         )}
-        {signals.map(sig => (
-          <div key={sig.id}
-            onClick={() => handleClick(sig)}
-            className={`group flex items-center gap-2 p-1.5 rounded border cursor-pointer transition-all text-[10px] font-mono ${
-              isSelected(sig.id)
-                ? "border-signal-green/50 bg-signal-green/10"
-                : "border-border/50 hover:border-signal-cyan/30 hover:bg-secondary/50"
-            }`}>
-            {multiSelect ? (
-              <input type="checkbox" checked={isSelected(sig.id)} readOnly className="accent-signal-green w-3 h-3 shrink-0" />
-            ) : isSelected(sig.id) ? (
-              <Check className="w-3 h-3 text-signal-green shrink-0" />
-            ) : (
-              <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-foreground truncate">{sig.message_text}</p>
-              <p className="text-[8px] text-muted-foreground">
-                SF{sig.sf} · {sig.bw / 1000}кГц · {sig.n_symbols}сим · {(sig.duration * 1000).toFixed(1)}мс
-              </p>
+        {signals.map(sig => {
+          const mt = (sig.mod_type || "lora") as ModulationType;
+          const g = getProtocolGroup(mt);
+          const isLoRa = mt === "lora";
+          return (
+            <div key={sig.id}
+              onClick={() => handleClick(sig)}
+              className={`group flex items-center gap-2 p-1.5 rounded border cursor-pointer transition-all text-[10px] font-mono ${
+                isSelected(sig.id)
+                  ? "border-signal-green/50 bg-signal-green/10"
+                  : "border-border/50 hover:border-signal-cyan/30 hover:bg-secondary/50"
+              }`}>
+              {multiSelect ? (
+                <input type="checkbox" checked={isSelected(sig.id)} readOnly className="accent-signal-green w-3 h-3 shrink-0" />
+              ) : isSelected(sig.id) ? (
+                <Check className="w-3 h-3 text-signal-green shrink-0" />
+              ) : (
+                <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-foreground truncate">{sig.message_text}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className={`text-[8px] px-1 py-0.5 rounded border bg-${g.color}/10 text-${g.color} border-${g.color}/20 uppercase`}>
+                    {mt}
+                  </span>
+                  {isLoRa && (
+                    <span className="text-[8px] text-muted-foreground">SF{sig.sf} · {sig.bw / 1000}кГц</span>
+                  )}
+                  <span className="text-[8px] text-muted-foreground">{sig.n_symbols}сим</span>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="mt-1 text-[8px] font-mono text-muted-foreground text-center">
         {signals.length} сигналов
