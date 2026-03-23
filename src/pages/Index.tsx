@@ -51,17 +51,36 @@ const Index = () => {
   }, [text, modType, sf]);
   const [saving, setSaving] = useState(false);
 
-  const params = useMemo(() => ({
+  const loraParams = useMemo(() => ({
     sf,
     bw: bw * 1000,
     fc: 915e6,
     sampleRate: 500e3,
   }), [sf, bw]);
 
-  const signal = useMemo(() =>
-    generateLoRaSignal(params, text, numSymbols),
-    [params, text, numSymbols]
-  );
+  const signal = useMemo(() => {
+    if (isLoRa) {
+      return generateLoRaSignal(loraParams, text, numSymbols);
+    }
+    const modParams: ModulationParams = {
+      type: modType,
+      sampleRate: modType === "cdma" ? 500000 : 200000,
+      symbolRate,
+      fc: 915e6,
+      freqDeviation,
+      chipRate,
+      spreadingCode: 0,
+    };
+    const mod = generateModulatedSignal(modParams, text, numSymbols);
+    return {
+      time: mod.time,
+      real: mod.real,
+      imag: mod.imag,
+      amplitude: mod.amplitude,
+      symbols: mod.symbols,
+      params: loraParams,
+    };
+  }, [isLoRa, loraParams, modType, text, numSymbols, symbolRate, freqDeviation, chipRate]);
 
   const tSymbol = useMemo(() => (2 ** sf / (bw * 1000)) * 1000, [sf, bw]);
   const duration = signal.symbols.length * tSymbol / 1000; // seconds
