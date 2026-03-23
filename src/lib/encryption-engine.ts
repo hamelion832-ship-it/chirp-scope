@@ -168,6 +168,7 @@ export function encryptAESLike(data: number[], key: number[]): number[] {
     }
     bytes.push(byte);
   }
+  const originalByteLen = bytes.length;
   // Pad to multiple of 16
   while (bytes.length % 16 !== 0) bytes.push(0);
 
@@ -184,12 +185,12 @@ export function encryptAESLike(data: number[], key: number[]): number[] {
     result.push(...block);
   }
 
-  // Convert back to bits
+  // Convert back to bits — return FULL block-aligned output
   const bits: number[] = [];
   for (const byte of result) {
     for (let i = 7; i >= 0; i--) bits.push((byte >> i) & 1);
   }
-  return bits.slice(0, data.length);
+  return bits;
 }
 
 export function decryptAESLike(data: number[], key: number[]): number[] {
