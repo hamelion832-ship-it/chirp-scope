@@ -189,13 +189,15 @@ export function assessSecurity(params: {
   originalTextLength: number;
   numSymbols: number;
   protocolClass?: string;
+  encryptionType?: string;
+  encryptionStrength?: number;
   signalReconstructionMetrics?: {
     mse: number;
     snrDb: number;
     correlationCoeff: number;
   };
 }): SecurityAssessment {
-  const { sf, bw, noiseLevel, decoderResults, originalTextLength, numSymbols, protocolClass, signalReconstructionMetrics } = params;
+  const { sf, bw, noiseLevel, decoderResults, originalTextLength, numSymbols, protocolClass, signalReconstructionMetrics, encryptionType, encryptionStrength } = params;
 
   const factors: SecurityFactor[] = [];
 
