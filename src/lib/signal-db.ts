@@ -14,6 +14,7 @@ export interface StoredSignal {
   n_symbols: number;
   symbols_preview: number[];
   tags: string;
+  mod_type: string;
   created_at: string;
 }
 
