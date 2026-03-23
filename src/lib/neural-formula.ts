@@ -1,20 +1,178 @@
 /**
  * Neural Formula Fitting Engine
  * 
- * Fits a universal parametric chirp formula to LoRa signal data:
- *   y(t) = A · exp(-α·t) · cos(2π·(f₀·t + β·t²/2) + φ) + C
- * 
- * Coefficients: A (amplitude), α (decay), f₀ (base freq), β (chirp rate), φ (phase), C (offset)
+ * Supports multiple formula types with gradient descent optimization:
+ * 1. Chirp:     y(t) = A · exp(-α·t) · cos(2π·(f₀·t + β·t²/2) + φ) + C
+ * 2. DampedSine: y(t) = A · exp(-α·t) · sin(2π·f₀·t + φ) + C
+ * 3. Gaussian:  y(t) = A · exp(-(t-μ)²/(2σ²)) · cos(2π·f₀·t + φ) + C
+ * 4. Harmonics: y(t) = A₁sin(2πf₁t) + A₂sin(2πf₂t) + A₃sin(2πf₃t) + C
+ * 5. Polynomial: y(t) = a₀ + a₁t + a₂t² + a₃t³ + a₄t⁴ + a₅t⁵
  */
 
-export interface FormulaCoefficients {
-  A: number;   // amplitude
-  alpha: number; // decay rate
-  f0: number;  // base frequency (normalized)
-  beta: number; // chirp rate
-  phi: number; // phase offset
-  C: number;   // DC offset
+export type FormulaType = 'chirp' | 'damped_sine' | 'gaussian' | 'harmonics' | 'polynomial';
+
+export const FORMULA_TYPES: Record<FormulaType, { label: string; description: string; latex: string }> = {
+  chirp: {
+    label: 'Чирп (CSS)',
+    description: 'Классическая модель LoRa CSS — затухающий чирп с линейной модуляцией частоты',
+    latex: 'y(t) = A · e^(-αt) · cos(2π·(f₀t + βt²/2) + φ) + C',
+  },
+  damped_sine: {
+    label: 'Затухающая синусоида',
+    description: 'Экспоненциально затухающая гармоника — подходит для импульсных сигналов',
+    latex: 'y(t) = A · e^(-αt) · sin(2π·f₀t + φ) + C',
+  },
+  gaussian: {
+    label: 'Гауссов импульс',
+    description: 'Гауссова модуляция косинуса — для пакетных сигналов с локализацией',
+    latex: 'y(t) = A · e^(-(t-μ)²/(2σ²)) · cos(2π·f₀t + φ) + C',
+  },
+  harmonics: {
+    label: 'Сумма гармоник',
+    description: 'Три суперпозированные гармоники — для периодических многочастотных сигналов',
+    latex: 'y(t) = A₁sin(2πf₁t) + A₂sin(2πf₂t) + A₃sin(2πf₃t) + C',
+  },
+  polynomial: {
+    label: 'Полином 5-й степени',
+    description: 'Полиномиальная аппроксимация — универсальное приближение для гладких кривых',
+    latex: 'y(t) = a₀ + a₁t + a₂t² + a₃t³ + a₄t⁴ + a₅t⁵',
+  },
+};
+
+// ─── Coefficient types per formula ────────────────────────────────
+
+export interface ChirpCoeffs { A: number; alpha: number; f0: number; beta: number; phi: number; C: number; }
+export interface DampedSineCoeffs { A: number; alpha: number; f0: number; phi: number; C: number; }
+export interface GaussianCoeffs { A: number; mu: number; sigma: number; f0: number; phi: number; C: number; }
+export interface HarmonicsCoeffs { A1: number; f1: number; A2: number; f2: number; A3: number; f3: number; C: number; }
+export interface PolynomialCoeffs { a0: number; a1: number; a2: number; a3: number; a4: number; a5: number; }
+
+export type FormulaCoefficients = ChirpCoeffs | DampedSineCoeffs | GaussianCoeffs | HarmonicsCoeffs | PolynomialCoeffs;
+
+// ─── Defaults ─────────────────────────────────────────────────────
+
+export const DEFAULT_COEFFS: Record<FormulaType, FormulaCoefficients> = {
+  chirp:       { A: 1.0, alpha: 0.01, f0: 1.0, beta: 0.5, phi: 0.0, C: 0.0 },
+  damped_sine: { A: 1.0, alpha: 0.01, f0: 1.0, phi: 0.0, C: 0.0 },
+  gaussian:    { A: 1.0, mu: 0.5, sigma: 0.2, f0: 1.0, phi: 0.0, C: 0.0 },
+  harmonics:   { A1: 1.0, f1: 1.0, A2: 0.5, f2: 2.0, A3: 0.25, f3: 3.0, C: 0.0 },
+  polynomial:  { a0: 0.0, a1: 1.0, a2: 0.0, a3: 0.0, a4: 0.0, a5: 0.0 },
+};
+
+export const COEFF_LABELS: Record<FormulaType, Record<string, string>> = {
+  chirp:       { A: 'A (амплитуда)', alpha: 'α (затухание)', f0: 'f₀ (частота)', beta: 'β (чирп)', phi: 'φ (фаза)', C: 'C (смещение)' },
+  damped_sine: { A: 'A (амплитуда)', alpha: 'α (затухание)', f0: 'f₀ (частота)', phi: 'φ (фаза)', C: 'C (смещение)' },
+  gaussian:    { A: 'A (амплитуда)', mu: 'μ (центр)', sigma: 'σ (ширина)', f0: 'f₀ (частота)', phi: 'φ (фаза)', C: 'C (смещение)' },
+  harmonics:   { A1: 'A₁ (амп.1)', f1: 'f₁ (част.1)', A2: 'A₂ (амп.2)', f2: 'f₂ (част.2)', A3: 'A₃ (амп.3)', f3: 'f₃ (част.3)', C: 'C (смещение)' },
+  polynomial:  { a0: 'a₀', a1: 'a₁', a2: 'a₂', a3: 'a₃', a4: 'a₄', a5: 'a₅' },
+};
+
+// ─── Evaluation ───────────────────────────────────────────────────
+
+export function evaluateFormula(t: number, c: FormulaCoefficients, type: FormulaType): number {
+  switch (type) {
+    case 'chirp': {
+      const cc = c as ChirpCoeffs;
+      return cc.A * Math.exp(-cc.alpha * t) * Math.cos(2 * Math.PI * (cc.f0 * t + cc.beta * t * t / 2) + cc.phi) + cc.C;
+    }
+    case 'damped_sine': {
+      const cc = c as DampedSineCoeffs;
+      return cc.A * Math.exp(-cc.alpha * t) * Math.sin(2 * Math.PI * cc.f0 * t + cc.phi) + cc.C;
+    }
+    case 'gaussian': {
+      const cc = c as GaussianCoeffs;
+      return cc.A * Math.exp(-((t - cc.mu) ** 2) / (2 * cc.sigma ** 2)) * Math.cos(2 * Math.PI * cc.f0 * t + cc.phi) + cc.C;
+    }
+    case 'harmonics': {
+      const cc = c as HarmonicsCoeffs;
+      return cc.A1 * Math.sin(2 * Math.PI * cc.f1 * t) +
+             cc.A2 * Math.sin(2 * Math.PI * cc.f2 * t) +
+             cc.A3 * Math.sin(2 * Math.PI * cc.f3 * t) + cc.C;
+    }
+    case 'polynomial': {
+      const cc = c as PolynomialCoeffs;
+      return cc.a0 + cc.a1 * t + cc.a2 * t ** 2 + cc.a3 * t ** 3 + cc.a4 * t ** 4 + cc.a5 * t ** 5;
+    }
+  }
 }
+
+// ─── Gradients ────────────────────────────────────────────────────
+
+function computeGradients(t: number, c: FormulaCoefficients, target: number, type: FormulaType): Record<string, number> {
+  const pred = evaluateFormula(t, c, type);
+  const err = pred - target;
+
+  switch (type) {
+    case 'chirp': {
+      const cc = c as ChirpCoeffs;
+      const expP = Math.exp(-cc.alpha * t);
+      const angle = 2 * Math.PI * (cc.f0 * t + cc.beta * t * t / 2) + cc.phi;
+      const cosP = Math.cos(angle);
+      const sinP = Math.sin(angle);
+      return {
+        A: err * expP * cosP,
+        alpha: err * cc.A * (-t) * expP * cosP,
+        f0: err * cc.A * expP * (-sinP) * 2 * Math.PI * t,
+        beta: err * cc.A * expP * (-sinP) * Math.PI * t * t,
+        phi: err * cc.A * expP * (-sinP),
+        C: err,
+      };
+    }
+    case 'damped_sine': {
+      const cc = c as DampedSineCoeffs;
+      const expP = Math.exp(-cc.alpha * t);
+      const angle = 2 * Math.PI * cc.f0 * t + cc.phi;
+      const sinP = Math.sin(angle);
+      const cosP = Math.cos(angle);
+      return {
+        A: err * expP * sinP,
+        alpha: err * cc.A * (-t) * expP * sinP,
+        f0: err * cc.A * expP * cosP * 2 * Math.PI * t,
+        phi: err * cc.A * expP * cosP,
+        C: err,
+      };
+    }
+    case 'gaussian': {
+      const cc = c as GaussianCoeffs;
+      const gaussP = Math.exp(-((t - cc.mu) ** 2) / (2 * cc.sigma ** 2));
+      const angle = 2 * Math.PI * cc.f0 * t + cc.phi;
+      const cosP = Math.cos(angle);
+      const sinP = Math.sin(angle);
+      return {
+        A: err * gaussP * cosP,
+        mu: err * cc.A * gaussP * cosP * ((t - cc.mu) / (cc.sigma ** 2)),
+        sigma: err * cc.A * gaussP * cosP * ((t - cc.mu) ** 2 / (cc.sigma ** 3)),
+        f0: err * cc.A * gaussP * (-sinP) * 2 * Math.PI * t,
+        phi: err * cc.A * gaussP * (-sinP),
+        C: err,
+      };
+    }
+    case 'harmonics': {
+      const cc = c as HarmonicsCoeffs;
+      return {
+        A1: err * Math.sin(2 * Math.PI * cc.f1 * t),
+        f1: err * cc.A1 * Math.cos(2 * Math.PI * cc.f1 * t) * 2 * Math.PI * t,
+        A2: err * Math.sin(2 * Math.PI * cc.f2 * t),
+        f2: err * cc.A2 * Math.cos(2 * Math.PI * cc.f2 * t) * 2 * Math.PI * t,
+        A3: err * Math.sin(2 * Math.PI * cc.f3 * t),
+        f3: err * cc.A3 * Math.cos(2 * Math.PI * cc.f3 * t) * 2 * Math.PI * t,
+        C: err,
+      };
+    }
+    case 'polynomial': {
+      return {
+        a0: err,
+        a1: err * t,
+        a2: err * t ** 2,
+        a3: err * t ** 3,
+        a4: err * t ** 4,
+        a5: err * t ** 5,
+      };
+    }
+  }
+}
+
+// ─── Training config & result ─────────────────────────────────────
 
 export interface TrainingConfig {
   learningRate: number;
@@ -24,144 +182,118 @@ export interface TrainingConfig {
 
 export interface TrainingResult {
   coefficients: FormulaCoefficients;
+  formulaType: FormulaType;
   mse: number;
   r2: number;
   maxError: number;
   epochLosses: number[];
 }
 
-export interface SignalSample {
-  t: number;
-  y: number;
-}
+export interface SignalSample { t: number; y: number; }
 
-const DEFAULT_COEFFS: FormulaCoefficients = {
-  A: 1.0,
-  alpha: 0.01,
-  f0: 1.0,
-  beta: 0.5,
-  phi: 0.0,
-  C: 0.0,
-};
+// ─── Training ─────────────────────────────────────────────────────
 
-/** Evaluate the universal formula at time t */
-export function evaluateFormula(t: number, c: FormulaCoefficients): number {
-  return c.A * Math.exp(-c.alpha * t) * Math.cos(2 * Math.PI * (c.f0 * t + c.beta * t * t / 2) + c.phi) + c.C;
-}
-
-/** Compute partial derivatives for gradient descent */
-function gradients(t: number, c: FormulaCoefficients, target: number): FormulaCoefficients {
-  const pred = evaluateFormula(t, c);
-  const err = pred - target;
-  
-  const expPart = Math.exp(-c.alpha * t);
-  const angle = 2 * Math.PI * (c.f0 * t + c.beta * t * t / 2) + c.phi;
-  const cosPart = Math.cos(angle);
-  const sinPart = Math.sin(angle);
-  
-  return {
-    A: err * expPart * cosPart,
-    alpha: err * c.A * (-t) * expPart * cosPart,
-    f0: err * c.A * expPart * (-sinPart) * 2 * Math.PI * t,
-    beta: err * c.A * expPart * (-sinPart) * 2 * Math.PI * t * t / 2,
-    phi: err * c.A * expPart * (-sinPart),
-    C: err,
-  };
-}
-
-/** Clip gradient values to prevent explosion */
 function clipGrad(g: number, maxVal = 5.0): number {
   return Math.max(-maxVal, Math.min(maxVal, g));
 }
 
-/** Fit formula to signal samples using gradient descent */
 export function trainFormula(
   samples: SignalSample[],
   config: TrainingConfig,
+  formulaType: FormulaType = 'chirp',
   initialCoeffs?: Partial<FormulaCoefficients>,
   onEpoch?: (epoch: number, loss: number) => void
 ): TrainingResult {
-  const c: FormulaCoefficients = { ...DEFAULT_COEFFS, ...initialCoeffs };
+  const c: Record<string, number> = { ...(DEFAULT_COEFFS[formulaType] as unknown as Record<string, number>), ...(initialCoeffs as Record<string, number>) };
   const lr = config.learningRate;
   const epochLosses: number[] = [];
   const n = samples.length;
-  
+
   if (n === 0) {
-    return { coefficients: c, mse: 0, r2: 0, maxError: 0, epochLosses: [] };
+    return { coefficients: c as unknown as FormulaCoefficients, formulaType, mse: 0, r2: 0, maxError: 0, epochLosses: [] };
   }
 
-  // Normalize time to [0, 1]
   const tMax = Math.max(...samples.map(s => s.t), 1e-9);
   const normalized = samples.map(s => ({ t: s.t / tMax, y: s.y }));
+  const keys = Object.keys(c);
 
   for (let epoch = 0; epoch < config.epochs; epoch++) {
     let totalLoss = 0;
-    
-    // Accumulate gradients over mini-batch or full batch
     const batchSize = Math.min(config.batchSize, n);
     const indices = Array.from({ length: batchSize }, () => Math.floor(Math.random() * n));
 
-    const gAcc: FormulaCoefficients = { A: 0, alpha: 0, f0: 0, beta: 0, phi: 0, C: 0 };
+    const gAcc: Record<string, number> = {};
+    for (const k of keys) gAcc[k] = 0;
 
     for (const idx of indices) {
       const s = normalized[idx];
-      const g = gradients(s.t, c, s.y);
-      gAcc.A += g.A;
-      gAcc.alpha += g.alpha;
-      gAcc.f0 += g.f0;
-      gAcc.beta += g.beta;
-      gAcc.phi += g.phi;
-      gAcc.C += g.C;
-
-      const pred = evaluateFormula(s.t, c);
+      const g = computeGradients(s.t, c as unknown as FormulaCoefficients, s.y, formulaType);
+      for (const k of keys) gAcc[k] += g[k] ?? 0;
+      const pred = evaluateFormula(s.t, c as unknown as FormulaCoefficients, formulaType);
       totalLoss += (pred - s.y) ** 2;
     }
 
-    // Update coefficients
     const scale = lr / batchSize;
-    c.A -= clipGrad(gAcc.A) * scale;
-    c.alpha -= clipGrad(gAcc.alpha) * scale * 0.1; // slower for stability
-    c.f0 -= clipGrad(gAcc.f0) * scale;
-    c.beta -= clipGrad(gAcc.beta) * scale;
-    c.phi -= clipGrad(gAcc.phi) * scale;
-    c.C -= clipGrad(gAcc.C) * scale;
+    for (const k of keys) {
+      const lrScale = (k === 'alpha' || k === 'sigma') ? 0.1 : 1;
+      c[k] -= clipGrad(gAcc[k]) * scale * lrScale;
+    }
 
-    // Keep alpha non-negative
-    c.alpha = Math.max(0, c.alpha);
+    // Constraints
+    if ('alpha' in c) c.alpha = Math.max(0, c.alpha);
+    if ('sigma' in c) c.sigma = Math.max(0.01, c.sigma);
 
     const mse = totalLoss / batchSize;
     epochLosses.push(mse);
-    
+
     if (onEpoch && epoch % Math.max(1, Math.floor(config.epochs / 100)) === 0) {
       onEpoch(epoch, mse);
     }
   }
 
-  // Compute final metrics on all data
-  let totalSqErr = 0;
-  let maxErr = 0;
-  let yMean = 0;
+  // Final metrics
+  let totalSqErr = 0, maxErr = 0, yMean = 0, ssTot = 0;
   for (const s of normalized) yMean += s.y;
   yMean /= n;
-  
-  let ssTot = 0;
   for (const s of normalized) {
-    const pred = evaluateFormula(s.t, c);
+    const pred = evaluateFormula(s.t, c as unknown as FormulaCoefficients, formulaType);
     const err = Math.abs(pred - s.y);
     totalSqErr += err ** 2;
     maxErr = Math.max(maxErr, err);
     ssTot += (s.y - yMean) ** 2;
   }
 
-  const mse = totalSqErr / n;
-  const r2 = ssTot > 0 ? 1 - totalSqErr / ssTot : 0;
-
-  return { coefficients: c, mse, r2, maxError: maxErr, epochLosses };
+  return {
+    coefficients: c as unknown as FormulaCoefficients,
+    formulaType,
+    mse: totalSqErr / n,
+    r2: ssTot > 0 ? 1 - totalSqErr / ssTot : 0,
+    maxError: maxErr,
+    epochLosses,
+  };
 }
 
-/** Generate predicted signal from formula */
+/** Train all formula types and return the best one */
+export function autoFitBest(
+  samples: SignalSample[],
+  config: TrainingConfig,
+): TrainingResult {
+  const types: FormulaType[] = ['chirp', 'damped_sine', 'gaussian', 'harmonics', 'polynomial'];
+  let best: TrainingResult | null = null;
+  for (const ft of types) {
+    const result = trainFormula(samples, config, ft);
+    if (!best || result.r2 > best.r2) {
+      best = result;
+    }
+  }
+  return best!;
+}
+
+// ─── Prediction & formatting ──────────────────────────────────────
+
 export function generatePrediction(
   coefficients: FormulaCoefficients,
+  formulaType: FormulaType,
   tStart: number,
   tEnd: number,
   numPoints: number
@@ -171,27 +303,49 @@ export function generatePrediction(
   for (let i = 0; i < numPoints; i++) {
     const t = tStart + (i / (numPoints - 1)) * (tEnd - tStart);
     const tNorm = (t - tStart) / tMax;
-    result.push({ t, y: evaluateFormula(tNorm, coefficients) });
+    result.push({ t, y: evaluateFormula(tNorm, coefficients, formulaType) });
   }
   return result;
 }
 
-/** Format formula as LaTeX-like string */
-export function formatFormula(c: FormulaCoefficients): string {
+export function formatFormula(c: FormulaCoefficients, type: FormulaType): string {
+  const f = (v: number) => v.toFixed(4);
   const sign = (v: number) => v >= 0 ? '+' : '';
-  return `y(t) = ${c.A.toFixed(4)} · e^(-${c.alpha.toFixed(4)}·t) · cos(2π·(${c.f0.toFixed(4)}·t ${sign(c.beta)}${c.beta.toFixed(4)}·t²/2) ${sign(c.phi)}${c.phi.toFixed(4)}) ${sign(c.C)}${c.C.toFixed(4)}`;
+  switch (type) {
+    case 'chirp': {
+      const cc = c as ChirpCoeffs;
+      return `y(t) = ${f(cc.A)} · e^(-${f(cc.alpha)}·t) · cos(2π·(${f(cc.f0)}·t ${sign(cc.beta)}${f(cc.beta)}·t²/2) ${sign(cc.phi)}${f(cc.phi)}) ${sign(cc.C)}${f(cc.C)}`;
+    }
+    case 'damped_sine': {
+      const cc = c as DampedSineCoeffs;
+      return `y(t) = ${f(cc.A)} · e^(-${f(cc.alpha)}·t) · sin(2π·${f(cc.f0)}·t ${sign(cc.phi)}${f(cc.phi)}) ${sign(cc.C)}${f(cc.C)}`;
+    }
+    case 'gaussian': {
+      const cc = c as GaussianCoeffs;
+      return `y(t) = ${f(cc.A)} · e^(-(t-${f(cc.mu)})²/(2·${f(cc.sigma)}²)) · cos(2π·${f(cc.f0)}·t ${sign(cc.phi)}${f(cc.phi)}) ${sign(cc.C)}${f(cc.C)}`;
+    }
+    case 'harmonics': {
+      const cc = c as HarmonicsCoeffs;
+      return `y(t) = ${f(cc.A1)}·sin(2π·${f(cc.f1)}·t) ${sign(cc.A2)}${f(cc.A2)}·sin(2π·${f(cc.f2)}·t) ${sign(cc.A3)}${f(cc.A3)}·sin(2π·${f(cc.f3)}·t) ${sign(cc.C)}${f(cc.C)}`;
+    }
+    case 'polynomial': {
+      const cc = c as PolynomialCoeffs;
+      return `y(t) = ${f(cc.a0)} ${sign(cc.a1)}${f(cc.a1)}·t ${sign(cc.a2)}${f(cc.a2)}·t² ${sign(cc.a3)}${f(cc.a3)}·t³ ${sign(cc.a4)}${f(cc.a4)}·t⁴ ${sign(cc.a5)}${f(cc.a5)}·t⁵`;
+    }
+  }
 }
 
-/** Compare two coefficient sets and return relative differences */
 export function compareCoefficients(
   a: FormulaCoefficients,
   b: FormulaCoefficients
-): Record<keyof FormulaCoefficients, number> {
-  const keys: (keyof FormulaCoefficients)[] = ['A', 'alpha', 'f0', 'beta', 'phi', 'C'];
-  const result = {} as Record<keyof FormulaCoefficients, number>;
+): Record<string, number> {
+  const aRec = a as unknown as Record<string, number>;
+  const bRec = b as unknown as Record<string, number>;
+  const keys = Object.keys(aRec);
+  const result: Record<string, number> = {};
   for (const k of keys) {
-    const denom = Math.max(Math.abs(a[k]), Math.abs(b[k]), 1e-9);
-    result[k] = Math.abs(a[k] - b[k]) / denom;
+    const denom = Math.max(Math.abs(aRec[k]), Math.abs(bRec[k] ?? 0), 1e-9);
+    result[k] = Math.abs(aRec[k] - (bRec[k] ?? 0)) / denom;
   }
   return result;
 }
