@@ -107,9 +107,18 @@ export function UnifiedModelPanel() {
         if (signalSource === "fhss") {
           samples = buildFHSSSamples().samples;
         } else {
-          const stored = signals.find(s => s.id === selectedDbIds[0]);
-          if (!stored) { toast.error("Выберите сигнал"); setTraining(false); return; }
-          samples = buildDbSamples(stored);
+          // Merge samples from all selected DB signals
+          if (selectedDbIds.length === 0) { toast.error("Выберите сигналы"); setTraining(false); return; }
+          samples = [];
+          for (const id of selectedDbIds) {
+            const stored = signals.find(s => s.id === id);
+            if (stored) {
+              const dbSamples = buildDbSamples(stored);
+              const offset = samples.length > 0 ? samples[samples.length - 1].t + 0.1 : 0;
+              samples.push(...dbSamples.map(s => ({ t: s.t + offset, y: s.y })));
+            }
+          }
+          if (samples.length === 0) { toast.error("Нет данных"); setTraining(false); return; }
         }
 
         const res = trainUnifiedFormula(samples, config, undefined, (ep, loss) => {
