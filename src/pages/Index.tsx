@@ -10,6 +10,7 @@ import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UnifiedModelPanel } from "@/components/UnifiedModelPanel";
 import { InverseModelPanel } from "@/components/InverseModelPanel";
+import { DatabasePanel } from "@/components/DatabasePanel";
 import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
