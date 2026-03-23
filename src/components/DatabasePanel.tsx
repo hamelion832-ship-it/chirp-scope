@@ -316,6 +316,11 @@ export function DatabasePanel() {
                         <td className="p-1.5 text-muted-foreground">
                           {(sig.mod_type || 'lora') === 'lora' ? sig.cr : '—'}
                         </td>
+                        <td className="p-1.5">
+                          {sig.encryption_type && sig.encryption_type !== "none" ? (
+                            <span className="px-1 py-0.5 bg-signal-amber/10 text-signal-amber rounded text-[8px] border border-signal-amber/20">🔒{sig.encryption_type}</span>
+                          ) : <span className="text-muted-foreground/50 text-[9px]">нет</span>}
+                        </td>
                         <td className="p-1.5 text-muted-foreground">{sig.n_symbols}</td>
                         <td className="p-1.5 text-muted-foreground">{(sig.duration * 1000).toFixed(1)}</td>
                         <td className="p-1.5">

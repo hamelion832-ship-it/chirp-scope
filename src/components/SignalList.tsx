@@ -108,6 +108,11 @@ export function SignalList({ onSelect, refreshKey }: SignalListProps) {
                   <span className="text-[9px] font-mono text-muted-foreground">
                     {sig.n_symbols}сим · {(sig.duration * 1000).toFixed(1)}мс
                   </span>
+                  {sig.encryption_type && sig.encryption_type !== "none" && (
+                    <span className="text-[8px] font-mono px-1 py-0.5 rounded border bg-signal-amber/10 text-signal-amber border-signal-amber/20">
+                      🔒{sig.encryption_type}
+                    </span>
+                  )}
                   {sig.tags && <span className="text-[8px] text-signal-cyan">#{sig.tags}</span>}
                 </div>
               </div>

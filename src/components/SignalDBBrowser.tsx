@@ -122,6 +122,11 @@ export function SignalDBBrowser({ onSelectSignal, selectedId, multiSelect, selec
                     <span className="text-[8px] text-muted-foreground">SF{sig.sf} · {sig.bw / 1000}кГц</span>
                   )}
                   <span className="text-[8px] text-muted-foreground">{sig.n_symbols}сим</span>
+                  {sig.encryption_type && sig.encryption_type !== "none" && (
+                    <span className="text-[8px] px-1 py-0.5 rounded border bg-signal-amber/10 text-signal-amber border-signal-amber/20">
+                      🔒{sig.encryption_type}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
