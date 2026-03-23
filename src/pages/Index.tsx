@@ -186,6 +186,9 @@ const Index = () => {
           <TabsTrigger value="inverse" className="font-mono text-xs data-[state=active]:text-signal-amber">
             <RotateCcw className="w-3 h-3 mr-1.5" /> Декодер
           </TabsTrigger>
+          <TabsTrigger value="database" className="font-mono text-xs data-[state=active]:text-signal-green">
+            <Database className="w-3 h-3 mr-1.5" /> База данных
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard">
