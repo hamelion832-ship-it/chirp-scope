@@ -17,6 +17,11 @@ import {
   type SignalSample,
 } from "@/lib/neural-formula";
 import { generateLoRaSignal } from "@/lib/lora-signal";
+import {
+  generateModulatedSignal, getMaxSymbols,
+  MODULATION_REGISTRY, type ModulationType, type ModulationParams,
+} from "@/lib/modulation-engine";
+import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
