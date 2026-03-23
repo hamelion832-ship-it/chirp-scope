@@ -161,10 +161,12 @@ const Index = () => {
         </div>
         <div>
           <h1 className="text-lg font-mono font-bold text-foreground">
-            LoRa Signal <span className="text-signal-green glow-green">System</span>
+            Signal <span className="text-signal-green glow-green">System</span>
           </h1>
           <p className="text-[10px] text-muted-foreground font-mono">
-            SF={sf} · BW={bw}кГц · CR=4/{4 + cr} · T<sub>sym</sub>={tSymbol.toFixed(2)}мс · {signal.symbols.length} символов · {(duration * 1000).toFixed(1)}мс
+            {MODULATION_REGISTRY.find(m => m.id === modType)?.name}
+            {isLoRa && <> · SF={sf} · BW={bw}кГц · CR=4/{4 + cr} · T<sub>sym</sub>={tSymbol.toFixed(2)}мс</>}
+            {" "}· {signal.symbols.length} символов · {(duration * 1000).toFixed(1)}мс
           </p>
         </div>
       </header>
