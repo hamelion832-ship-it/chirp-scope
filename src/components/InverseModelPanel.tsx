@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, RotateCcw,
-  ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database,
+  ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database, Radar,
 } from "lucide-react";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
@@ -13,7 +13,7 @@ import {
   decodeCorrelation, decodeEnergy, decodeTemplate,
 } from "@/lib/inverse-decoders";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
-import type { StoredSignal } from "@/lib/signal-db";
+import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
