@@ -58,7 +58,7 @@ export function DatabasePanel() {
 
   const startEdit = (sig: StoredSignal) => {
     setEditingId(sig.id);
-    setEditData({ message_text: sig.message_text, tags: sig.tags, sf: sig.sf, bw: sig.bw, cr: sig.cr });
+    setEditData({ message_text: sig.message_text, tags: sig.tags, sf: sig.sf, bw: sig.bw, cr: sig.cr, mod_type: sig.mod_type });
   };
 
   const saveEdit = async () => {
@@ -69,7 +69,8 @@ export function DatabasePanel() {
       sf: editData.sf,
       bw: editData.bw,
       cr: editData.cr,
-    }).eq("id", editingId);
+      mod_type: editData.mod_type,
+    } as any).eq("id", editingId);
     if (error) { toast.error("Ошибка: " + error.message); return; }
     toast.success("Обновлено");
     setEditingId(null);
@@ -203,6 +204,7 @@ export function DatabasePanel() {
                       className="accent-signal-green w-3 h-3" />
                   </th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Текст</th>
+                  <th className="p-1.5 text-left text-muted-foreground font-medium">Протокол</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">SF</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">BW</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">CR</th>
@@ -232,6 +234,12 @@ export function DatabasePanel() {
                         <td className="p-1.5">
                           <input value={editData.message_text ?? ""} onChange={e => setEditData(d => ({ ...d, message_text: e.target.value }))}
                             className="bg-secondary border border-border rounded px-1 py-0.5 w-full text-[10px]" />
+                        </td>
+                        <td className="p-1.5">
+                          <select value={editData.mod_type ?? "lora"} onChange={e => setEditData(d => ({ ...d, mod_type: e.target.value }))}
+                            className="bg-secondary border border-border rounded px-1 py-0.5 text-[10px] w-16">
+                            {["lora", "bpsk", "qpsk", "8psk", "2fsk", "4fsk", "cdma"].map(v => <option key={v} value={v}>{v.toUpperCase()}</option>)}
+                          </select>
                         </td>
                         <td className="p-1.5">
                           <select value={editData.sf} onChange={e => setEditData(d => ({ ...d, sf: Number(e.target.value) }))}
@@ -268,6 +276,7 @@ export function DatabasePanel() {
                     ) : (
                       <>
                         <td className="p-1.5 text-foreground max-w-[200px] truncate" title={sig.message_text}>{sig.message_text}</td>
+                        <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-cyan/10 text-signal-cyan rounded text-[9px] uppercase">{sig.mod_type || 'lora'}</span></td>
                         <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-green/10 text-signal-green rounded text-[9px]">SF{sig.sf}</span></td>
                         <td className="p-1.5 text-muted-foreground">{sig.bw / 1000}к</td>
                         <td className="p-1.5 text-muted-foreground">{sig.cr}</td>

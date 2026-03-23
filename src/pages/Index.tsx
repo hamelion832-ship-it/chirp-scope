@@ -142,7 +142,7 @@ const Index = () => {
     } else {
       toast.error("Ошибка сохранения");
     }
-  }, [text, loraParams, cr, duration, signal.symbols, tags]);
+  }, [text, loraParams, cr, duration, signal.symbols, tags, modType]);
 
   const handleSelectFromDB = useCallback((stored: StoredSignal) => {
     setText(stored.message_text);
@@ -150,6 +150,7 @@ const Index = () => {
     setBw(stored.bw / 1000);
     setCr(stored.cr);
     setTags(stored.tags || "");
+    if (stored.mod_type) setModType(stored.mod_type as ModulationType);
     toast.info(`Загружен сигнал: "${stored.message_text.slice(0, 40)}..."`);
   }, []);
 
