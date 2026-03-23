@@ -140,21 +140,38 @@ const Index = () => {
   const iqPoints = useMemo(() => getIQPoints(signal.real, signal.imag, 8, 300), [signal]);
   const iqTrajectory = useMemo(() => getIQTrajectory(signal.real, signal.imag, 500), [signal]);
 
+  const meta = MODULATION_REGISTRY.find(m => m.id === modType)!;
+  const bitsPerSym = isLoRa ? sf : meta.bitsPerSymbol;
+  const currentSampleRate = isLoRa ? 500e3 : (modType === "cdma" ? 500000 : 200000);
+
   const handleSave = useCallback(async () => {
     setSaving(true);
-    // For non-LoRa protocols, save with protocol-specific sample rate
-    const saveParams = isLoRa
-      ? loraParams
-      : { sf, bw: modType === "cdma" ? 500000 : 200000, fc: 915e6, sampleRate: modType === "cdma" ? 500000 : 200000 };
-    const id = await saveSignal(text, saveParams, cr, duration, signal.symbols.length, signal.symbols, tags, modType);
+    const id = await saveSignal({
+      text,
+      sf: isLoRa ? sf : 0,
+      bw: isLoRa ? bw * 1000 : currentSampleRate,
+      cr: isLoRa ? cr : 0,
+      fc: 915e6,
+      duration,
+      nSymbols: signal.symbols.length,
+      symbols: signal.symbols,
+      tags,
+      modType,
+      symbolRate: isLoRa ? Math.round(bw * 1000 / (2 ** sf)) : symbolRate,
+      freqDeviation,
+      chipRate,
+      sampleRate: currentSampleRate,
+      encryptionType: encType,
+      bitsPerSymbol: bitsPerSym,
+    });
     setSaving(false);
     if (id) {
-      toast.success(`Сигнал сохранён (${signal.symbols.length} символов, ${modType.toUpperCase()})`);
+      toast.success(`${modType.toUpperCase()} · ${encType !== "none" ? ENCRYPTION_REGISTRY.find(e => e.id === encType)?.name + " · " : ""}${signal.symbols.length} символов`);
       setRefreshKey(k => k + 1);
     } else {
       toast.error("Ошибка сохранения");
     }
-  }, [text, loraParams, cr, duration, signal.symbols, tags, modType, isLoRa, sf]);
+  }, [text, sf, bw, cr, duration, signal.symbols, tags, modType, isLoRa, symbolRate, freqDeviation, chipRate, currentSampleRate, encType, bitsPerSym]);
 
   const handleSelectFromDB = useCallback((stored: StoredSignal) => {
     setText(stored.message_text);
@@ -163,7 +180,11 @@ const Index = () => {
     setCr(stored.cr);
     setTags(stored.tags || "");
     if (stored.mod_type) setModType(stored.mod_type as ModulationType);
-    toast.info(`Загружен сигнал: "${stored.message_text.slice(0, 40)}..."`);
+    if (stored.encryption_type) setEncType(stored.encryption_type as EncryptionType);
+    if (stored.symbol_rate) setSymbolRate(stored.symbol_rate);
+    if (stored.freq_deviation) setFreqDeviation(stored.freq_deviation);
+    if (stored.chip_rate) setChipRate(stored.chip_rate);
+    toast.info(`Загружен: "${stored.message_text.slice(0, 30)}…" [${stored.mod_type?.toUpperCase()}]`);
   }, []);
 
   return (
