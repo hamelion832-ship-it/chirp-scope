@@ -134,7 +134,7 @@ const Index = () => {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
-    const id = await saveSignal(text, loraParams, cr, duration, signal.symbols.length, signal.symbols, tags);
+    const id = await saveSignal(text, loraParams, cr, duration, signal.symbols.length, signal.symbols, tags, modType);
     setSaving(false);
     if (id) {
       toast.success(`Сигнал сохранён (${signal.symbols.length} символов)`);

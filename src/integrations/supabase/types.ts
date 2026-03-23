@@ -25,6 +25,7 @@ export type Database = {
           message_length: number
           message_text: string
           metadata: Json | null
+          mod_type: string
           n_symbols: number
           sf: number
           signal_hash: string
@@ -41,6 +42,7 @@ export type Database = {
           message_length: number
           message_text: string
           metadata?: Json | null
+          mod_type?: string
           n_symbols: number
           sf: number
           signal_hash: string
@@ -57,6 +59,7 @@ export type Database = {
           message_length?: number
           message_text?: string
           metadata?: Json | null
+          mod_type?: string
           n_symbols?: number
           sf?: number
           signal_hash?: string

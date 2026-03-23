@@ -1,0 +1,1 @@
+ALTER TABLE public.signals ADD COLUMN mod_type text NOT NULL DEFAULT 'lora';
