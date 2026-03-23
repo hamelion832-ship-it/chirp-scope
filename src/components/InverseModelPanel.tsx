@@ -5,6 +5,7 @@ import {
   Shield, ShieldAlert, ShieldCheck, RefreshCw, Activity,
   Binary, GitBranch, TrendingUp, ScanLine, Layers, Search,
 } from "lucide-react";
+import { getProtocolGroup, PROTOCOL_CHART_COLORS } from "@/lib/protocol-classify";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
   buildTrainingPairs, trainDecoder, decodeSignal, compareTexts,
