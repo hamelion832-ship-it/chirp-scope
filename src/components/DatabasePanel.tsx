@@ -280,6 +280,7 @@ export function DatabasePanel() {
                             {[1, 2, 3, 4].map(v => <option key={v} value={v}>{v}</option>)}
                           </select>
                         </td>
+                        <td className="p-1.5 text-muted-foreground text-[9px]">{sig.encryption_type ?? "none"}</td>
                         <td className="p-1.5 text-muted-foreground">{sig.n_symbols}</td>
                         <td className="p-1.5 text-muted-foreground">{(sig.duration * 1000).toFixed(1)}</td>
                         <td className="p-1.5">
