@@ -3,6 +3,7 @@ import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, Sparkles, Zap,
   Settings2, BarChart3, Radio, Waves, Activity, Sliders,
 } from "lucide-react";
+import { getProtocolGroup, PROTOCOL_CHART_COLORS } from "@/lib/protocol-classify";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
