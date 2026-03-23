@@ -430,13 +430,13 @@ export function NeuralFormulaPanel() {
 
         {/* Results */}
         <div className="lg:col-span-3 space-y-3">
-          {activeResult && activeStored ? (
+          {activeResult && (activeStored || isUnifiedResult) ? (
             <>
               {/* Formula display */}
               <div className="chart-panel">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-xs font-mono font-semibold text-signal-green">
-                    {FORMULA_TYPES[activeResult.formulaType].label}: "{activeStored.message_text.slice(0, 40)}…"
+                    {FORMULA_TYPES[activeResult.formulaType].label}: {isUnifiedResult ? `Единая модель (${selected.length} сигналов)` : `"${activeStored!.message_text.slice(0, 40)}…"`}
                   </h3>
                   <div className="flex items-center gap-2">
                     <span className={`text-[10px] font-mono ${activeResult.r2 > 0.8 ? "text-signal-green" : activeResult.r2 > 0.5 ? "text-signal-amber" : "text-signal-red"}`}>
