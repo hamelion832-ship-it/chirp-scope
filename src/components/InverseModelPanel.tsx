@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, RotateCcw,
   ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database, Radar,
+  Shield, ShieldAlert, ShieldCheck, RefreshCw, Activity,
 } from "lucide-react";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
@@ -12,12 +13,17 @@ import {
   DECODER_REGISTRY, type DecoderType, type ClassicDecodedResult,
   decodeCorrelation, decodeEnergy, decodeTemplate,
 } from "@/lib/inverse-decoders";
+import {
+  reconstructFromSymbols, compareSignals, assessSecurity,
+  type ReconstructedSignal, type SecurityAssessment,
+} from "@/lib/signal-reconstruct";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, BarChart, Bar, Cell,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar as ReRadar,
 } from "recharts";
 
 const SAMPLE_TEXTS = [
@@ -34,6 +40,22 @@ const DECODER_ICONS: Record<string, React.ElementType> = {
 type SignalSourceMode = "manual" | "db" | "unified";
 type AnyResult = { method: DecoderType; symbols: number[]; confidence: number[]; decodedText: string; processingTimeMs?: number };
 
+const RISK_COLORS: Record<string, string> = {
+  critical: "text-red-500",
+  high: "text-signal-red",
+  medium: "text-signal-amber",
+  low: "text-signal-green",
+  minimal: "text-signal-cyan",
+};
+
+const RISK_ICONS: Record<string, React.ElementType> = {
+  critical: ShieldAlert,
+  high: ShieldAlert,
+  medium: Shield,
+  low: ShieldCheck,
+  minimal: ShieldCheck,
+};
+
 export function InverseModelPanel() {
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
@@ -41,14 +63,12 @@ export function InverseModelPanel() {
   const [numSymbols, setNumSymbols] = useState(20);
   const [noiseLevel, setNoiseLevel] = useState(0);
 
-  // Max symbols based on UTF-8 byte length and SF
   const maxSymbols = useMemo(() => {
     const byteLen = new TextEncoder().encode(text).length;
     const clampedBytes = Math.min(byteLen, 1240);
     return Math.max(1, Math.floor((clampedBytes * 8) / sf));
   }, [text, sf]);
 
-  // Clamp numSymbols when maxSymbols changes
   useEffect(() => {
     setNumSymbols(prev => Math.min(prev, maxSymbols));
   }, [maxSymbols]);
@@ -58,22 +78,22 @@ export function InverseModelPanel() {
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Results per decoder type
   const [mlpTrain, setMlpTrain] = useState<DecoderTrainingResult | null>(null);
   const [mlpResult, setMlpResult] = useState<DecodedResult | null>(null);
   const [classicResults, setClassicResults] = useState<Record<string, ClassicDecodedResult>>({});
   const [textComparison, setTextComparison] = useState<Record<string, ReturnType<typeof compareTexts>>>({});
 
-  // DB selection — multi-select
+  // Reconstruction state
+  const [reconstruction, setReconstruction] = useState<ReconstructedSignal | null>(null);
+  const [securityReport, setSecurityReport] = useState<SecurityAssessment | null>(null);
+
+  // DB selection
   const [dbSignals, setDbSignals] = useState<StoredSignal[]>([]);
   const [dbSelectedIds, setDbSelectedIds] = useState<string[]>([]);
   const [showDB, setShowDB] = useState(false);
   const [signalSourceMode, setSignalSourceMode] = useState<SignalSourceMode>("manual");
 
-  // Load DB signals for unified model source
-  useEffect(() => {
-    fetchSignals().then(setDbSignals);
-  }, []);
+  useEffect(() => { fetchSignals().then(setDbSignals); }, []);
 
   const handleToggleDbSignal = useCallback((stored: StoredSignal) => {
     setDbSelectedIds(prev =>
@@ -81,13 +101,11 @@ export function InverseModelPanel() {
     );
   }, []);
 
-  // When DB signals selected, use first one's params for signal generation
   const activeDbSignal = useMemo(() => {
     if (signalSourceMode !== "db" || dbSelectedIds.length === 0) return null;
     return dbSignals.find(s => dbSelectedIds.includes(s.id)) ?? null;
   }, [signalSourceMode, dbSelectedIds, dbSignals]);
 
-  // Apply first selected DB signal params
   useEffect(() => {
     if (activeDbSignal) {
       setText(activeDbSignal.message_text);
@@ -98,13 +116,11 @@ export function InverseModelPanel() {
     }
   }, [activeDbSignal]);
 
-  // Signal generation — merge multiple DB signals for training
   const signal = useMemo(() => {
     const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
     return generateLoRaSignal(params, text, numSymbols);
   }, [sf, bw, text, numSymbols]);
 
-  // Build merged training signal from multiple DB entries
   const mergedTrainingSignals = useMemo(() => {
     if (signalSourceMode !== "db" || dbSelectedIds.length <= 1) return null;
     return dbSelectedIds.map(id => {
@@ -132,6 +148,44 @@ export function InverseModelPanel() {
   const M = 2 ** sf;
   const samplesPerSymbol = Math.floor(500e3 * (M / (bw * 1000)));
 
+  // Run reconstruction whenever we have a result
+  const runReconstruction = useCallback((decodedSymbols: number[]) => {
+    const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
+    const recon = reconstructFromSymbols(decodedSymbols, params);
+    const cmp = compareSignals(signal, recon);
+    setReconstruction(cmp);
+    return cmp;
+  }, [sf, bw, signal]);
+
+  // Run security assessment when all results are available
+  const runSecurityAssessment = useCallback(() => {
+    const results: { method: string; charAccuracy: number; symbolAccuracy: number; avgConfidence: number }[] = [];
+    
+    for (const [key, comp] of Object.entries(textComparison)) {
+      const res = key === "mlp" ? mlpResult : classicResults[key];
+      if (!res || !comp) continue;
+      const symAcc = signal.symbols.slice(0, res.symbols.length)
+        .filter((s, i) => s === res.symbols[i]).length / (res.symbols.length || 1);
+      const avgConf = res.confidence.reduce((a, b) => a + b, 0) / (res.confidence.length || 1);
+      results.push({ method: key, charAccuracy: comp.charAccuracy, symbolAccuracy: symAcc, avgConfidence: avgConf });
+    }
+
+    if (results.length === 0) return;
+
+    const report = assessSecurity({
+      sf, bw: bw * 1000, noiseLevel,
+      decoderResults: results,
+      originalTextLength: text.length,
+      numSymbols,
+    });
+    setSecurityReport(report);
+  }, [textComparison, mlpResult, classicResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols]);
+
+  // Auto-assess security when results change
+  useEffect(() => {
+    if (Object.keys(textComparison).length > 0) runSecurityAssessment();
+  }, [textComparison, runSecurityAssessment]);
+
   const handleTrainMLP = useCallback(async () => {
     setTraining(true);
     setProgress(0);
@@ -149,14 +203,14 @@ export function InverseModelPanel() {
       const decoded = decodeSignal(noisySignal.real, noisySignal.imag, samplesPerSymbol, result, sf);
       setMlpResult(decoded);
       setTextComparison(prev => ({ ...prev, mlp: compareTexts(text, decoded.decodedText) }));
+      runReconstruction(decoded.symbols);
       toast.success(`MLP: точность ${(result.accuracy * 100).toFixed(1)}%`);
     } catch (e) {
       toast.error("Ошибка обучения MLP");
       console.error(e);
     } finally { setTraining(false); }
-  }, [signal, noisySignal, samplesPerSymbol, config, M, sf, text]);
+  }, [signal, noisySignal, samplesPerSymbol, config, M, sf, text, runReconstruction]);
 
-  // Classic decoders
   const runClassicDecoder = useCallback((type: DecoderType) => {
     try {
       let result: ClassicDecodedResult;
@@ -176,14 +230,14 @@ export function InverseModelPanel() {
       }
       setClassicResults(prev => ({ ...prev, [type]: result }));
       setTextComparison(prev => ({ ...prev, [type]: compareTexts(text, result.decodedText) }));
+      runReconstruction(result.symbols);
       toast.success(`${DECODER_REGISTRY.find(d => d.id === type)?.name}: ${(result.processingTimeMs).toFixed(0)}мс`);
     } catch (e) {
       toast.error(`Ошибка ${type}`);
       console.error(e);
     }
-  }, [noisySignal, samplesPerSymbol, sf, bw, text]);
+  }, [noisySignal, samplesPerSymbol, sf, bw, text, runReconstruction]);
 
-  // Run all decoders at once
   const runAll = useCallback(async () => {
     setTraining(true);
     await handleTrainMLP();
@@ -193,17 +247,15 @@ export function InverseModelPanel() {
     setTraining(false);
   }, [handleTrainMLP, runClassicDecoder]);
 
-  // Gather all available results for comparison
   const allResults = useMemo(() => {
     const res: AnyResult[] = [];
-    if (mlpResult) res.push({ method: "mlp", symbols: mlpResult.symbols, confidence: mlpResult.confidence, decodedText: mlpResult.decodedText, processingTimeMs: undefined });
+    if (mlpResult) res.push({ method: "mlp", symbols: mlpResult.symbols, confidence: mlpResult.confidence, decodedText: mlpResult.decodedText });
     for (const [key, val] of Object.entries(classicResults)) {
       res.push({ method: key as DecoderType, symbols: val.symbols, confidence: val.confidence, decodedText: val.decodedText, processingTimeMs: val.processingTimeMs });
     }
     return res;
   }, [mlpResult, classicResults]);
 
-  // Active result
   const activeResult = useMemo(() => allResults.find(r => r.method === activeDecoder), [allResults, activeDecoder]);
   const activeComparison = textComparison[activeDecoder];
 
@@ -221,6 +273,23 @@ export function InverseModelPanel() {
     }
     return data;
   }, [signal, noisySignal]);
+
+  const reconstructionPreview = useMemo(() => {
+    if (!reconstruction || !activeResult) return [];
+    const maxPts = 400;
+    const len = Math.min(signal.real.length, reconstruction.real.length);
+    const step = Math.max(1, Math.floor(len / maxPts));
+    const data: { t: number; original: number; reconstructed: number; error: number }[] = [];
+    for (let i = 0; i < len && data.length < maxPts; i += step) {
+      data.push({
+        t: +(signal.time[i] * 1000).toFixed(3),
+        original: +signal.real[i].toFixed(4),
+        reconstructed: +reconstruction.real[i].toFixed(4),
+        error: +reconstruction.errorReal[i].toFixed(4),
+      });
+    }
+    return data;
+  }, [signal, reconstruction, activeResult]);
 
   const symbolCompareData = useMemo(() => {
     if (!activeResult) return [];
@@ -252,6 +321,15 @@ export function InverseModelPanel() {
     });
   }, [textComparison, allResults, signal.symbols, mlpTrain]);
 
+  const securityRadarData = useMemo(() => {
+    if (!securityReport) return [];
+    return securityReport.factors.map(f => ({
+      factor: f.name.split(" ").slice(0, 2).join(" "),
+      score: +f.score.toFixed(0),
+      fullMark: 100,
+    }));
+  }, [securityReport]);
+
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -259,7 +337,7 @@ export function InverseModelPanel() {
         <div className="flex flex-wrap gap-3 items-center">
           <RotateCcw className="w-5 h-5 text-signal-amber" />
           <span className="text-sm font-mono font-semibold text-foreground">
-            Обратное преобразование: s(t) → текст
+            Обратное преобразование: s(t) → текст → s'(t)
           </span>
           <div className="ml-auto flex gap-1">
             {([
@@ -285,7 +363,6 @@ export function InverseModelPanel() {
             ))}
           </div>
         </div>
-        {/* Decoder type selector */}
         <div className="flex flex-wrap gap-1.5">
           {DECODER_REGISTRY.map(d => {
             const Icon = DECODER_ICONS[d.icon] || Brain;
@@ -306,10 +383,9 @@ export function InverseModelPanel() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-        {/* Left column — params + DB */}
+        {/* Left column */}
         <div className={`space-y-3 ${showDB ? "lg:col-span-2" : "lg:col-span-1"}`}>
           <div className={showDB ? "grid grid-cols-2 gap-3" : ""}>
-            {/* Signal params */}
             <div className="chart-panel space-y-2">
               <h3 className="text-xs font-mono font-semibold text-signal-green flex items-center gap-1">
                 <Zap className="w-3 h-3" /> Сигнал
@@ -355,19 +431,13 @@ export function InverseModelPanel() {
               </div>
             </div>
 
-            {/* DB browser */}
             {showDB && (
               <div style={{ minHeight: 300 }}>
-                <SignalDBBrowser
-                  multiSelect
-                  selectedIds={dbSelectedIds}
-                  onToggleSignal={handleToggleDbSignal}
-                />
+                <SignalDBBrowser multiSelect selectedIds={dbSelectedIds} onToggleSignal={handleToggleDbSignal} />
               </div>
             )}
           </div>
 
-          {/* Decoder config (MLP only) */}
           {activeDecoder === "mlp" && (
             <div className="chart-panel space-y-2">
               <h3 className="text-xs font-mono font-semibold text-signal-cyan flex items-center gap-1">
@@ -454,6 +524,56 @@ export function InverseModelPanel() {
               </div>
             </div>
           )}
+
+          {/* Security Assessment */}
+          {securityReport && (
+            <div className="chart-panel space-y-2">
+              <h3 className="text-xs font-mono font-semibold flex items-center gap-1.5">
+                {(() => { const Icon = RISK_ICONS[securityReport.riskLevel]; return <Icon className={`w-4 h-4 ${RISK_COLORS[securityReport.riskLevel]}`} />; })()}
+                <span className={RISK_COLORS[securityReport.riskLevel]}>
+                  Оценка взлома: {securityReport.vulnerabilityScore.toFixed(0)}/100
+                </span>
+              </h3>
+              <p className="text-[9px] font-mono text-muted-foreground">{securityReport.summary}</p>
+              
+              {/* Factor breakdown */}
+              <div className="space-y-1">
+                {securityReport.factors.map((f, i) => (
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex items-center justify-between text-[9px] font-mono">
+                      <span className="text-muted-foreground truncate max-w-[160px]">{f.name}</span>
+                      <span className={
+                        f.score > 70 ? "text-signal-red" :
+                        f.score > 40 ? "text-signal-amber" : "text-signal-green"
+                      }>{f.score.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full h-1 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          f.score > 70 ? "bg-signal-red" :
+                          f.score > 40 ? "bg-signal-amber" : "bg-signal-green"
+                        }`}
+                        style={{ width: `${f.score}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recommendations */}
+              <div className="border-t border-border pt-2 mt-2">
+                <p className="text-[9px] font-mono font-semibold text-muted-foreground mb-1">Рекомендации:</p>
+                <ul className="space-y-0.5">
+                  {securityReport.recommendations.map((r, i) => (
+                    <li key={i} className="text-[8px] font-mono text-muted-foreground flex gap-1">
+                      <span className="text-signal-amber">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right — results */}
@@ -472,7 +592,7 @@ export function InverseModelPanel() {
                 <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 9 }} />
                 <Legend wrapperStyle={{ fontSize: 9 }} />
                 {noiseLevel > 0 && <Line dataKey="noisy" stroke="hsl(var(--signal-red))" dot={false} strokeWidth={0.8} name="Зашумлённый" opacity={0.6} />}
-                <Line dataKey="clean" stroke="hsl(var(--signal-blue))" dot={false} strokeWidth={1.2} name="Чистый" />
+                <Line dataKey="clean" stroke="hsl(var(--signal-blue))" dot={false} strokeWidth={1.2} name="Оригинал" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -516,9 +636,40 @@ export function InverseModelPanel() {
                 )}
               </div>
 
+              {/* Reconstructed signal comparison */}
+              {reconstruction && (
+                <div className="chart-panel" style={{ height: 200 }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <RefreshCw className="w-3.5 h-3.5 text-signal-magenta" />
+                    <h3 className="text-[10px] font-mono font-semibold text-signal-magenta">
+                      Обратная генерация: s'(t) из декодированных символов
+                    </h3>
+                    <div className="ml-auto flex gap-3 text-[9px] font-mono">
+                      <span className="text-muted-foreground">MSE: <span className="text-foreground">{reconstruction.mse.toExponential(2)}</span></span>
+                      <span className="text-muted-foreground">SNR: <span className="text-foreground">{reconstruction.snrDb.toFixed(1)} дБ</span></span>
+                      <span className="text-muted-foreground">r: <span className={
+                        reconstruction.correlationCoeff > 0.9 ? "text-signal-green" :
+                        reconstruction.correlationCoeff > 0.5 ? "text-signal-amber" : "text-signal-red"
+                      }>{reconstruction.correlationCoeff.toFixed(4)}</span></span>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height="85%">
+                    <LineChart data={reconstructionPreview}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
+                      <XAxis dataKey="t" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
+                      <YAxis tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
+                      <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 9 }} />
+                      <Legend wrapperStyle={{ fontSize: 9 }} />
+                      <Line dataKey="original" stroke="hsl(var(--signal-blue))" dot={false} strokeWidth={1.2} name="Оригинал s(t)" />
+                      <Line dataKey="reconstructed" stroke="hsl(var(--signal-magenta))" dot={false} strokeWidth={1} name="Реконструкция s'(t)" opacity={0.8} />
+                      <Line dataKey="error" stroke="hsl(var(--signal-red))" dot={false} strokeWidth={0.7} name="Ошибка" opacity={0.5} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
               {/* Charts */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Symbol comparison */}
                 <div className="chart-panel" style={{ height: 210 }}>
                   <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">Символы: оригинал vs декод</h3>
                   <ResponsiveContainer width="100%" height="88%">
@@ -538,7 +689,6 @@ export function InverseModelPanel() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Confidence */}
                 <div className="chart-panel" style={{ height: 210 }}>
                   <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">Уверенность декодера</h3>
                   <ResponsiveContainer width="100%" height="88%">
@@ -553,7 +703,64 @@ export function InverseModelPanel() {
                 </div>
               </div>
 
-              {/* MLP-specific: training loss */}
+              {/* Security radar chart */}
+              {securityReport && securityRadarData.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="chart-panel" style={{ height: 240 }}>
+                    <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1 flex items-center gap-1">
+                      <Activity className="w-3 h-3 text-signal-red" /> Радар уязвимостей
+                    </h3>
+                    <ResponsiveContainer width="100%" height="90%">
+                      <RadarChart data={securityRadarData}>
+                        <PolarGrid stroke="hsl(var(--border))" />
+                        <PolarAngleAxis dataKey="factor" tick={{ fontSize: 7, fill: "hsl(var(--muted-foreground))" }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 7, fill: "hsl(var(--muted-foreground))" }} />
+                        <ReRadar name="Уязвимость" dataKey="score" stroke="hsl(var(--signal-red))" fill="hsl(var(--signal-red))" fillOpacity={0.2} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {reconstruction && (
+                    <div className="chart-panel space-y-2">
+                      <h3 className="text-[10px] font-mono font-semibold text-signal-magenta flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3" /> Метрики реконструкции
+                      </h3>
+                      <div className="space-y-1.5 text-[10px] font-mono">
+                        <div className="flex justify-between"><span className="text-muted-foreground">MSE (ср. квадр. ошибка):</span>
+                          <span className="text-foreground">{reconstruction.mse.toExponential(3)}</span>
+                        </div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">SNR реконструкции:</span>
+                          <span className={reconstruction.snrDb > 20 ? "text-signal-green" : reconstruction.snrDb > 5 ? "text-signal-amber" : "text-signal-red"}>
+                            {reconstruction.snrDb.toFixed(1)} дБ
+                          </span>
+                        </div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Пиковая ошибка:</span>
+                          <span className="text-foreground">{reconstruction.peakError.toFixed(4)}</span>
+                        </div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Корреляция Пирсона:</span>
+                          <span className={
+                            reconstruction.correlationCoeff > 0.95 ? "text-signal-green" :
+                            reconstruction.correlationCoeff > 0.7 ? "text-signal-amber" : "text-signal-red"
+                          }>{reconstruction.correlationCoeff.toFixed(4)}</span>
+                        </div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Символов декодировано:</span>
+                          <span className="text-foreground">{activeResult?.symbols.length ?? 0}</span>
+                        </div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Символов совпало:</span>
+                          <span className="text-foreground">
+                            {activeResult ? signal.symbols.slice(0, activeResult.symbols.length).filter((s, i) => s === activeResult.symbols[i]).length : 0}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="border-t border-border pt-2 text-[9px] font-mono text-muted-foreground">
+                        Полный цикл: текст → символы → s(t) → декодер → символы' → s'(t) → текст'
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MLP-specific */}
               {activeDecoder === "mlp" && mlpTrain && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="chart-panel" style={{ height: 200 }}>
@@ -595,10 +802,10 @@ export function InverseModelPanel() {
               <RotateCcw className="w-10 h-10 text-muted-foreground mb-3 opacity-40" />
               <p className="text-sm font-mono text-muted-foreground">Выберите декодер и запустите</p>
               <p className="text-[10px] font-mono text-muted-foreground mt-1">
-                4 типа декодеров: MLP (обучаемый), корреляционный, энергетический, шаблонный
+                4 типа декодеров · обратная генерация s'(t) · оценка уязвимости
               </p>
               <p className="text-[10px] font-mono text-muted-foreground/60 mt-3 max-w-md">
-                Загрузите сигнал из БД или введите текст · Нажмите «Запустить все» для сравнения
+                Полный цикл: текст → s(t) → декодер → символы' → s'(t) → текст' → оценка взлома
               </p>
             </div>
           )}
