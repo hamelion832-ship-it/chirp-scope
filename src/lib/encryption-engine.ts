@@ -114,21 +114,39 @@ function invShiftRows(block: number[]): number[] {
   return out;
 }
 
-function mixColumn(a: number, b: number, c: number, d: number): [number, number, number, number] {
-  // Simplified MixColumns using XOR combinations
-  return [
-    (a ^ b ^ c) & 0xFF,
-    (b ^ c ^ d) & 0xFF,
-    (c ^ d ^ a) & 0xFF,
-    (d ^ a ^ b) & 0xFF,
-  ];
+/** GF(2^8) multiply for AES MixColumns */
+function gmul(a: number, b: number): number {
+  let p = 0;
+  for (let i = 0; i < 8; i++) {
+    if (b & 1) p ^= a;
+    const hi = a & 0x80;
+    a = (a << 1) & 0xFF;
+    if (hi) a ^= 0x1B; // x^8 + x^4 + x^3 + x + 1
+    b >>= 1;
+  }
+  return p;
 }
 
 function mixColumns(block: number[]): number[] {
   const out = [...block];
   for (let col = 0; col < 4; col++) {
-    const [a, b, c, d] = mixColumn(block[col], block[4 + col], block[8 + col], block[12 + col]);
-    out[col] = a; out[4 + col] = b; out[8 + col] = c; out[12 + col] = d;
+    const a = block[col], b = block[4 + col], c = block[8 + col], d = block[12 + col];
+    out[col]       = gmul(2,a) ^ gmul(3,b) ^ c ^ d;
+    out[4 + col]   = a ^ gmul(2,b) ^ gmul(3,c) ^ d;
+    out[8 + col]   = a ^ b ^ gmul(2,c) ^ gmul(3,d);
+    out[12 + col]  = gmul(3,a) ^ b ^ c ^ gmul(2,d);
+  }
+  return out;
+}
+
+function invMixColumns(block: number[]): number[] {
+  const out = [...block];
+  for (let col = 0; col < 4; col++) {
+    const a = block[col], b = block[4 + col], c = block[8 + col], d = block[12 + col];
+    out[col]       = gmul(14,a) ^ gmul(11,b) ^ gmul(13,c) ^ gmul(9,d);
+    out[4 + col]   = gmul(9,a) ^ gmul(14,b) ^ gmul(11,c) ^ gmul(13,d);
+    out[8 + col]   = gmul(13,a) ^ gmul(9,b) ^ gmul(14,c) ^ gmul(11,d);
+    out[12 + col]  = gmul(11,a) ^ gmul(13,b) ^ gmul(9,c) ^ gmul(14,d);
   }
   return out;
 }
