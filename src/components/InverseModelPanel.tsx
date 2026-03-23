@@ -3,6 +3,7 @@ import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, RotateCcw,
   ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database, Radar,
   Shield, ShieldAlert, ShieldCheck, RefreshCw, Activity,
+  Binary, GitBranch, TrendingUp, ScanLine, Layers, Search,
 } from "lucide-react";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
@@ -22,6 +23,12 @@ import {
   reconstructProtocolSignal, getMaxSymbols,
   MODULATION_REGISTRY, type ModulationType, type ModulationParams,
 } from "@/lib/modulation-engine";
+import {
+  classifyProtocol, type ProtocolClassification,
+  URH_DECODER_REGISTRY, type URHDecoderType, type URHDecodedResult,
+  decodeManchesterURH, decodeDifferentialURH, decodeZeroCrossingURH,
+  decodeEnvelopeURH, decodePreambleSyncURH, decodeBitsliceURH,
+} from "@/lib/urh-decoders";
 import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
@@ -40,11 +47,12 @@ const SAMPLE_TEXTS = [
 ];
 
 const DECODER_ICONS: Record<string, React.ElementType> = {
-  Brain, Waves, Zap, Copy,
+  Brain, Waves, Zap, Copy, Binary, GitBranch, TrendingUp, Activity, ScanLine, Layers,
 };
 
 type SignalSourceMode = "manual" | "db" | "unified";
-type AnyResult = { method: DecoderType; symbols: number[]; confidence: number[]; decodedText: string; processingTimeMs?: number };
+type AnyDecoderType = DecoderType | URHDecoderType;
+type AnyResult = { method: AnyDecoderType; symbols: number[]; confidence: number[]; decodedText: string; processingTimeMs?: number };
 
 const RISK_COLORS: Record<string, string> = {
   critical: "text-red-500",
@@ -53,37 +61,33 @@ const RISK_COLORS: Record<string, string> = {
   low: "text-signal-green",
   minimal: "text-signal-cyan",
 };
-
 const RISK_ICONS: Record<string, React.ElementType> = {
-  critical: ShieldAlert,
-  high: ShieldAlert,
-  medium: Shield,
-  low: ShieldCheck,
-  minimal: ShieldCheck,
+  critical: ShieldAlert, high: ShieldAlert, medium: Shield, low: ShieldCheck, minimal: ShieldCheck,
 };
+
+const ALL_DECODERS = [
+  ...DECODER_REGISTRY.map(d => ({ ...d, group: "classic" as const })),
+  ...URH_DECODER_REGISTRY.map(d => ({ ...d, id: d.id as AnyDecoderType, needsTraining: false, group: "urh" as const })),
+];
 
 export function InverseModelPanel() {
   const [modType, setModType] = useState<ModulationType>("lora");
+  const [autoDetect, setAutoDetect] = useState(false);
+  const [classification, setClassification] = useState<ProtocolClassification | null>(null);
   const isLoRa = modType === "lora";
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [text, setText] = useState(SAMPLE_TEXTS[0]);
   const [numSymbols, setNumSymbols] = useState(20);
   const [noiseLevel, setNoiseLevel] = useState(0);
-  // Non-LoRa params
   const [symbolRate, setSymbolRate] = useState(10000);
   const [freqDeviation, setFreqDeviation] = useState(25000);
   const [chipRate, setChipRate] = useState(100000);
 
-  const maxSymbols = useMemo(() => {
-    return getMaxSymbols(text, modType, sf);
-  }, [text, modType, sf]);
+  const maxSymbols = useMemo(() => getMaxSymbols(text, modType, sf), [text, modType, sf]);
+  useEffect(() => { setNumSymbols(prev => Math.min(prev, maxSymbols)); }, [maxSymbols]);
 
-  useEffect(() => {
-    setNumSymbols(prev => Math.min(prev, maxSymbols));
-  }, [maxSymbols]);
-
-  const [activeDecoder, setActiveDecoder] = useState<DecoderType>("mlp");
+  const [activeDecoder, setActiveDecoder] = useState<AnyDecoderType>("mlp");
   const [config, setConfig] = useState<DecoderConfig>(DEFAULT_DECODER_CONFIG);
   const [training, setTraining] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -91,13 +95,12 @@ export function InverseModelPanel() {
   const [mlpTrain, setMlpTrain] = useState<DecoderTrainingResult | null>(null);
   const [mlpResult, setMlpResult] = useState<DecodedResult | null>(null);
   const [classicResults, setClassicResults] = useState<Record<string, ClassicDecodedResult>>({});
+  const [urhResults, setUrhResults] = useState<Record<string, URHDecodedResult>>({});
   const [textComparison, setTextComparison] = useState<Record<string, ReturnType<typeof compareTexts>>>({});
 
-  // Reconstruction state
   const [reconstruction, setReconstruction] = useState<ReconstructedSignal | null>(null);
   const [securityReport, setSecurityReport] = useState<SecurityAssessment | null>(null);
 
-  // DB selection
   const [dbSignals, setDbSignals] = useState<StoredSignal[]>([]);
   const [dbSelectedIds, setDbSelectedIds] = useState<string[]>([]);
   const [showDB, setShowDB] = useState(false);
@@ -139,22 +142,14 @@ export function InverseModelPanel() {
     return { time: mod.time, real: mod.real, imag: mod.imag, amplitude: mod.amplitude, symbols: mod.symbols, params: { sf, bw: bw * 1000, fc: 915e6, sampleRate: modParams.sampleRate } };
   }, [isLoRa, modType, sf, bw, text, numSymbols, symbolRate, freqDeviation, chipRate]);
 
-  const mergedTrainingSignals = useMemo(() => {
-    if (signalSourceMode !== "db" || dbSelectedIds.length <= 1) return null;
-    return dbSelectedIds.map(id => {
-      const stored = dbSignals.find(s => s.id === id);
-      if (!stored) return null;
-      const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
-      const byteLen = new TextEncoder().encode(stored.message_text).length;
-      const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
-      return {
-        signal: generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym)),
-        text: stored.message_text,
-        sf: stored.sf,
-        bw: stored.bw,
-      };
-    }).filter(Boolean) as { signal: ReturnType<typeof generateLoRaSignal>; text: string; sf: number; bw: number }[];
-  }, [signalSourceMode, dbSelectedIds, dbSignals]);
+  // Auto-classify protocol
+  useEffect(() => {
+    if (autoDetect && signal.real.length > 0) {
+      const sr = isLoRa ? 500e3 : (modType === "cdma" ? 500000 : 200000);
+      const cls = classifyProtocol(signal.real, signal.imag, sr);
+      setClassification(cls);
+    }
+  }, [autoDetect, signal, isLoRa, modType]);
 
   const noisySignal = useMemo(() => {
     if (noiseLevel === 0) return signal;
@@ -171,7 +166,6 @@ export function InverseModelPanel() {
     ? Math.floor(500e3 * (M / (bw * 1000)))
     : Math.floor(sampleRate / symbolRate);
 
-  // Run reconstruction whenever we have a result
   const runReconstruction = useCallback((decodedSymbols: number[]) => {
     if (isLoRa) {
       const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
@@ -180,7 +174,6 @@ export function InverseModelPanel() {
       setReconstruction(cmp);
       return cmp;
     }
-    // Non-LoRa: reconstruct and compare
     const modParams: ModulationParams = {
       type: modType, sampleRate, symbolRate, fc: 915e6, freqDeviation, chipRate, spreadingCode: 0,
     };
@@ -204,16 +197,25 @@ export function InverseModelPanel() {
     const snrDb = sumErr2 > 0 ? 10*Math.log10(sumOrig2/sumErr2) : 100;
     const denom = Math.sqrt((len*sumO2-sumO**2)*(len*sumR2-sumR**2));
     const correlationCoeff = denom > 0 ? (len*sumOR-sumO*sumR)/denom : 0;
-    setReconstruction({ time: signal.time.slice(0,len), real: recon.real.slice(0,len), imag: recon.imag.slice(0,len), errorReal, errorImag, mse, snrDb, peakError, correlationCoeff });
-    return null;
+    const reconResult: ReconstructedSignal = { time: signal.time.slice(0,len), real: recon.real.slice(0,len), imag: recon.imag.slice(0,len), errorReal, errorImag, mse, snrDb, peakError, correlationCoeff };
+    setReconstruction(reconResult);
+    return reconResult;
   }, [isLoRa, modType, sf, bw, signal, sampleRate, symbolRate, freqDeviation, chipRate]);
 
-  // Run security assessment when all results are available
   const runSecurityAssessment = useCallback(() => {
     const results: { method: string; charAccuracy: number; symbolAccuracy: number; avgConfidence: number }[] = [];
     
-    for (const [key, comp] of Object.entries(textComparison)) {
-      const res = key === "mlp" ? mlpResult : classicResults[key];
+    const allRes = [
+      ...Object.entries(textComparison).map(([key, comp]) => {
+        const res = key === "mlp" ? mlpResult
+          : classicResults[key] ? classicResults[key]
+          : urhResults[key] ? urhResults[key]
+          : null;
+        return { key, comp, res };
+      }),
+    ].filter(x => x.res && x.comp);
+
+    for (const { key, comp, res } of allRes) {
       if (!res || !comp) continue;
       const symAcc = signal.symbols.slice(0, res.symbols.length)
         .filter((s, i) => s === res.symbols[i]).length / (res.symbols.length || 1);
@@ -228,11 +230,14 @@ export function InverseModelPanel() {
       decoderResults: results,
       originalTextLength: text.length,
       numSymbols,
+      protocolClass: autoDetect && classification ? classification.detectedType : modType,
+      signalReconstructionMetrics: reconstruction ? {
+        mse: reconstruction.mse, snrDb: reconstruction.snrDb, correlationCoeff: reconstruction.correlationCoeff,
+      } : undefined,
     });
     setSecurityReport(report);
-  }, [textComparison, mlpResult, classicResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols]);
+  }, [textComparison, mlpResult, classicResults, urhResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols, modType, autoDetect, classification, reconstruction]);
 
-  // Auto-assess security when results change
   useEffect(() => {
     if (Object.keys(textComparison).length > 0) runSecurityAssessment();
   }, [textComparison, runSecurityAssessment]);
@@ -265,7 +270,6 @@ export function InverseModelPanel() {
   const runClassicDecoder = useCallback((type: DecoderType) => {
     try {
       if (!isLoRa) {
-        // Protocol-specific decoders
         let protResult: import("@/lib/modulation-engine").ProtocolDecodedResult;
         const sr = sampleRate;
         if (["bpsk", "qpsk", "8psk"].includes(modType)) {
@@ -277,7 +281,6 @@ export function InverseModelPanel() {
           const sampPerChip = Math.max(1, Math.floor(sr / chipRate));
           protResult = decodeCDMA(noisySignal.real, sampPerChip, chipsPerSym, 0);
         }
-        // Wrap as ClassicDecodedResult
         const fakeResult: ClassicDecodedResult = {
           symbols: protResult.symbols, confidence: protResult.confidence,
           decodedBits: [], decodedText: protResult.decodedText, scores: [],
@@ -314,14 +317,48 @@ export function InverseModelPanel() {
     }
   }, [isLoRa, modType, noisySignal, samplesPerSymbol, sf, bw, bitsPerSym, sampleRate, symbolRate, freqDeviation, chipRate, text, runReconstruction]);
 
+  const runURHDecoder = useCallback((type: URHDecoderType) => {
+    try {
+      let result: URHDecodedResult;
+      const sr = isLoRa ? 500e3 : sampleRate;
+      switch (type) {
+        case "manchester":
+          result = decodeManchesterURH(noisySignal.real, samplesPerSymbol, bitsPerSym);
+          break;
+        case "differential":
+          result = decodeDifferentialURH(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym);
+          break;
+        case "zerocross":
+          result = decodeZeroCrossingURH(noisySignal.real, samplesPerSymbol, bitsPerSym, sr);
+          break;
+        case "envelope":
+          result = decodeEnvelopeURH(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym);
+          break;
+        case "preamble_sync":
+          result = decodePreambleSyncURH(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym);
+          break;
+        case "bitslice":
+          result = decodeBitsliceURH(noisySignal.real, samplesPerSymbol, bitsPerSym);
+          break;
+        default: return;
+      }
+      setUrhResults(prev => ({ ...prev, [type]: result }));
+      setTextComparison(prev => ({ ...prev, [type]: compareTexts(text, result.decodedText) }));
+      runReconstruction(result.symbols);
+      toast.success(`${URH_DECODER_REGISTRY.find(d => d.id === type)?.name}: ${result.processingTimeMs.toFixed(0)}мс`);
+    } catch (e) {
+      toast.error(`Ошибка ${type}`);
+      console.error(e);
+    }
+  }, [noisySignal, samplesPerSymbol, bitsPerSym, isLoRa, sampleRate, text, runReconstruction]);
+
   const runAll = useCallback(async () => {
     setTraining(true);
     await handleTrainMLP();
-    runClassicDecoder("correlation");
-    runClassicDecoder("energy");
-    runClassicDecoder("template");
+    for (const d of DECODER_REGISTRY) if (d.id !== "mlp") runClassicDecoder(d.id);
+    for (const d of URH_DECODER_REGISTRY) runURHDecoder(d.id);
     setTraining(false);
-  }, [handleTrainMLP, runClassicDecoder]);
+  }, [handleTrainMLP, runClassicDecoder, runURHDecoder]);
 
   const allResults = useMemo(() => {
     const res: AnyResult[] = [];
@@ -329,13 +366,15 @@ export function InverseModelPanel() {
     for (const [key, val] of Object.entries(classicResults)) {
       res.push({ method: key as DecoderType, symbols: val.symbols, confidence: val.confidence, decodedText: val.decodedText, processingTimeMs: val.processingTimeMs });
     }
+    for (const [key, val] of Object.entries(urhResults)) {
+      res.push({ method: key as URHDecoderType, symbols: val.symbols, confidence: val.confidence, decodedText: val.decodedText, processingTimeMs: val.processingTimeMs });
+    }
     return res;
-  }, [mlpResult, classicResults]);
+  }, [mlpResult, classicResults, urhResults]);
 
   const activeResult = useMemo(() => allResults.find(r => r.method === activeDecoder), [allResults, activeDecoder]);
   const activeComparison = textComparison[activeDecoder];
 
-  // Chart data
   const signalPreview = useMemo(() => {
     const maxPts = 400;
     const step = Math.max(1, Math.floor(noisySignal.real.length / maxPts));
@@ -383,11 +422,11 @@ export function InverseModelPanel() {
   }, [mlpTrain]);
 
   const comparisonTable = useMemo(() => {
-    return DECODER_REGISTRY.map(d => {
+    return ALL_DECODERS.map(d => {
       const comp = textComparison[d.id];
       const res = allResults.find(r => r.method === d.id);
       return {
-        id: d.id, name: d.name,
+        id: d.id, name: d.name, group: d.group,
         charAcc: comp ? (comp.charAccuracy * 100).toFixed(1) : "—",
         editDist: comp ? comp.editDistance : "—",
         symCorrect: res ? `${signal.symbols.slice(0, res.symbols.length).filter((s, i) => s === res.symbols[i]).length}/${res.symbols.length}` : "—",
@@ -408,11 +447,55 @@ export function InverseModelPanel() {
 
   return (
     <div className="space-y-3">
-      {/* Protocol selector */}
+      {/* Protocol selector + auto-detect */}
       <div className="chart-panel">
-        <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
-        <ProtocolSelector value={modType} onChange={setModType} compact />
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
+            <ProtocolSelector value={modType} onChange={setModType} compact />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <label className="text-[8px] font-mono text-muted-foreground">Автоопр.</label>
+            <button onClick={() => setAutoDetect(!autoDetect)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-mono border transition-colors ${
+                autoDetect ? "bg-signal-amber/20 text-signal-amber border-signal-amber/40" : "bg-secondary text-muted-foreground border-border"
+              }`}>
+              <Search className="w-3 h-3" />
+              {autoDetect ? "ON" : "OFF"}
+            </button>
+          </div>
+        </div>
+        {autoDetect && classification && (
+          <div className="mt-2 p-2 rounded bg-secondary border border-border space-y-1">
+            <div className="flex items-center gap-2 text-[10px] font-mono">
+              <Search className="w-3 h-3 text-signal-amber" />
+              <span className="text-muted-foreground">Классификация:</span>
+              <span className="text-signal-amber font-semibold">{classification.detectedType.toUpperCase()}</span>
+              <span className="text-muted-foreground">({(classification.confidence * 100).toFixed(0)}%)</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.entries(classification.scores) as [ModulationType, number][])
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4)
+                .map(([proto, score]) => (
+                  <span key={proto} className={`text-[8px] font-mono px-1.5 py-0.5 rounded border ${
+                    proto === classification.detectedType ? "bg-signal-amber/20 text-signal-amber border-signal-amber/30" : "bg-secondary text-muted-foreground border-border"
+                  }`}>
+                    {proto}: {score.toFixed(0)}
+                  </span>
+                ))}
+            </div>
+            <div className="flex flex-wrap gap-2 text-[8px] font-mono text-muted-foreground">
+              <span>AmpVar: {classification.features.amplitudeVariance.toFixed(3)}</span>
+              <span>PhaseVar: {classification.features.phaseVariance.toFixed(2)}</span>
+              <span>ZCR: {classification.features.zeroCrossingRate.toFixed(3)}</span>
+              <span>Peaks: {classification.features.spectralPeakCount}</span>
+              <span>Chip: {classification.features.chipPattern ? "✓" : "✗"}</span>
+            </div>
+          </div>
+        )}
       </div>
+
       {/* Header */}
       <div className="chart-panel space-y-2">
         <div className="flex flex-wrap gap-3 items-center">
@@ -427,11 +510,7 @@ export function InverseModelPanel() {
               ["unified", "Единая модель", "signal-magenta"],
             ] as [SignalSourceMode, string, string][]).map(([mode, label, color]) => (
               <button key={mode}
-                onClick={() => {
-                  setSignalSourceMode(mode);
-                  if (mode === "db") setShowDB(true);
-                  else setShowDB(false);
-                }}
+                onClick={() => { setSignalSourceMode(mode); setShowDB(mode === "db"); }}
                 className={`flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border transition-colors ${
                   signalSourceMode === mode
                     ? `bg-${color}/20 text-${color} border-${color}/40`
@@ -444,22 +523,45 @@ export function InverseModelPanel() {
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {DECODER_REGISTRY.map(d => {
-            const Icon = DECODER_ICONS[d.icon] || Brain;
-            return (
-              <button key={d.id} onClick={() => setActiveDecoder(d.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-mono border transition-all ${
-                  activeDecoder === d.id
-                    ? "border-signal-cyan/50 bg-signal-cyan/10 text-signal-cyan"
-                    : "border-border text-muted-foreground hover:text-foreground hover:border-border"
-                }`}>
-                <Icon className="w-3 h-3" />
-                {d.name}
-                {allResults.find(r => r.method === d.id) && <CheckCircle2 className="w-2.5 h-2.5 text-signal-green" />}
-              </button>
-            );
-          })}
+
+        {/* Decoder tabs - two groups */}
+        <div className="space-y-1">
+          <p className="text-[8px] font-mono text-muted-foreground uppercase tracking-wider">Классические декодеры</p>
+          <div className="flex flex-wrap gap-1">
+            {DECODER_REGISTRY.map(d => {
+              const Icon = DECODER_ICONS[d.icon] || Brain;
+              return (
+                <button key={d.id} onClick={() => setActiveDecoder(d.id)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-mono border transition-all ${
+                    activeDecoder === d.id
+                      ? "border-signal-cyan/50 bg-signal-cyan/10 text-signal-cyan"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}>
+                  <Icon className="w-3 h-3" />
+                  {d.name}
+                  {allResults.find(r => r.method === d.id) && <CheckCircle2 className="w-2.5 h-2.5 text-signal-green" />}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[8px] font-mono text-muted-foreground uppercase tracking-wider mt-1">URH-декодеры</p>
+          <div className="flex flex-wrap gap-1">
+            {URH_DECODER_REGISTRY.map(d => {
+              const Icon = DECODER_ICONS[d.icon] || Brain;
+              return (
+                <button key={d.id} onClick={() => setActiveDecoder(d.id)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-[9px] font-mono border transition-all ${
+                    activeDecoder === d.id
+                      ? "border-signal-magenta/50 bg-signal-magenta/10 text-signal-magenta"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}>
+                  <Icon className="w-3 h-3" />
+                  {d.name}
+                  {allResults.find(r => r.method === d.id) && <CheckCircle2 className="w-2.5 h-2.5 text-signal-green" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -572,17 +674,23 @@ export function InverseModelPanel() {
                 {training ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                 {training ? `${progress.toFixed(0)}%` : "Обучить MLP"}
               </button>
-            ) : (
-              <button onClick={() => runClassicDecoder(activeDecoder)}
+            ) : DECODER_REGISTRY.find(d => d.id === activeDecoder) ? (
+              <button onClick={() => runClassicDecoder(activeDecoder as DecoderType)}
                 className="w-full flex items-center justify-center gap-1.5 bg-signal-cyan/20 hover:bg-signal-cyan/30 text-signal-cyan rounded px-3 py-2 text-xs font-mono border border-signal-cyan/30 transition-colors">
                 <Play className="w-3 h-3" />
                 Декодировать ({DECODER_REGISTRY.find(d => d.id === activeDecoder)?.name})
+              </button>
+            ) : (
+              <button onClick={() => runURHDecoder(activeDecoder as URHDecoderType)}
+                className="w-full flex items-center justify-center gap-1.5 bg-signal-magenta/20 hover:bg-signal-magenta/30 text-signal-magenta rounded px-3 py-2 text-xs font-mono border border-signal-magenta/30 transition-colors">
+                <Play className="w-3 h-3" />
+                Декодировать ({URH_DECODER_REGISTRY.find(d => d.id === activeDecoder)?.name})
               </button>
             )}
             <button onClick={runAll} disabled={training}
               className="w-full flex items-center justify-center gap-1.5 bg-signal-magenta/20 hover:bg-signal-magenta/30 text-signal-magenta rounded px-3 py-1.5 text-[10px] font-mono border border-signal-magenta/30 transition-colors disabled:opacity-50">
               <ArrowRightLeft className="w-3 h-3" />
-              Запустить все декодеры
+              Запустить все декодеры ({ALL_DECODERS.length})
             </button>
           </div>
 
@@ -590,11 +698,11 @@ export function InverseModelPanel() {
           {allResults.length > 0 && (
             <div className="chart-panel">
               <h3 className="text-[10px] font-mono font-semibold text-signal-magenta flex items-center gap-1 mb-2">
-                <BarChart3 className="w-3 h-3" /> Сравнение декодеров
+                <BarChart3 className="w-3 h-3" /> Сравнение декодеров ({allResults.length}/{ALL_DECODERS.length})
               </h3>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[260px] overflow-y-auto">
                 <table className="w-full text-[9px] font-mono">
-                  <thead>
+                  <thead className="sticky top-0 bg-card">
                     <tr className="border-b border-border">
                       <th className="text-left py-1 text-muted-foreground font-normal">Метод</th>
                       <th className="text-right py-1 text-muted-foreground font-normal">Символы</th>
@@ -604,13 +712,16 @@ export function InverseModelPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {comparisonTable.map(row => (
+                    {comparisonTable.filter(r => r.done).map(row => (
                       <tr key={row.id}
-                        onClick={() => setActiveDecoder(row.id as DecoderType)}
+                        onClick={() => setActiveDecoder(row.id as AnyDecoderType)}
                         className={`border-b border-border/30 cursor-pointer transition-colors ${
                           activeDecoder === row.id ? "bg-signal-cyan/5" : "hover:bg-secondary/50"
                         }`}>
-                        <td className={`py-1 ${row.done ? "text-foreground" : "text-muted-foreground"}`}>{row.name}</td>
+                        <td className="py-1 text-foreground flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${row.group === "urh" ? "bg-signal-magenta" : "bg-signal-cyan"}`} />
+                          {row.name}
+                        </td>
                         <td className="text-right py-1 text-foreground">{row.symCorrect}</td>
                         <td className="text-right py-1">
                           <span className={
@@ -637,41 +748,58 @@ export function InverseModelPanel() {
                 <span className={RISK_COLORS[securityReport.riskLevel]}>
                   Оценка взлома: {securityReport.vulnerabilityScore.toFixed(0)}/100
                 </span>
+                {securityReport.protocolClass && (
+                  <span className="text-[9px] text-muted-foreground ml-1">[{securityReport.protocolClass.toUpperCase()}]</span>
+                )}
               </h3>
+
+              {/* Separate signal vs text scores */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2 rounded bg-secondary border border-border">
+                  <p className="text-[8px] font-mono text-muted-foreground">Восстановление сигнала</p>
+                  <p className={`text-lg font-mono font-bold ${
+                    securityReport.signalRecoveryScore > 70 ? "text-signal-red" :
+                    securityReport.signalRecoveryScore > 40 ? "text-signal-amber" : "text-signal-green"
+                  }`}>{securityReport.signalRecoveryScore.toFixed(0)}%</p>
+                  <p className="text-[7px] font-mono text-muted-foreground">s(t) → s'(t) корреляция</p>
+                </div>
+                <div className="p-2 rounded bg-secondary border border-border">
+                  <p className="text-[8px] font-mono text-muted-foreground">Расшифровка текста</p>
+                  <p className={`text-lg font-mono font-bold ${
+                    securityReport.textDecryptionScore > 70 ? "text-signal-red" :
+                    securityReport.textDecryptionScore > 40 ? "text-signal-amber" : "text-signal-green"
+                  }`}>{securityReport.textDecryptionScore.toFixed(0)}%</p>
+                  <p className="text-[7px] font-mono text-muted-foreground">text → text' совпадение</p>
+                </div>
+              </div>
+
               <p className="text-[9px] font-mono text-muted-foreground">{securityReport.summary}</p>
-              
+
               {/* Factor breakdown */}
               <div className="space-y-1">
                 {securityReport.factors.map((f, i) => (
                   <div key={i} className="space-y-0.5">
                     <div className="flex items-center justify-between text-[9px] font-mono">
                       <span className="text-muted-foreground truncate max-w-[160px]">{f.name}</span>
-                      <span className={
-                        f.score > 70 ? "text-signal-red" :
-                        f.score > 40 ? "text-signal-amber" : "text-signal-green"
-                      }>{f.score.toFixed(0)}%</span>
+                      <span className={f.score > 70 ? "text-signal-red" : f.score > 40 ? "text-signal-amber" : "text-signal-green"}>
+                        {f.score.toFixed(0)}%
+                      </span>
                     </div>
                     <div className="w-full h-1 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          f.score > 70 ? "bg-signal-red" :
-                          f.score > 40 ? "bg-signal-amber" : "bg-signal-green"
-                        }`}
-                        style={{ width: `${f.score}%` }}
-                      />
+                      <div className={`h-full rounded-full transition-all ${
+                        f.score > 70 ? "bg-signal-red" : f.score > 40 ? "bg-signal-amber" : "bg-signal-green"
+                      }`} style={{ width: `${f.score}%` }} />
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Recommendations */}
               <div className="border-t border-border pt-2 mt-2">
                 <p className="text-[9px] font-mono font-semibold text-muted-foreground mb-1">Рекомендации:</p>
                 <ul className="space-y-0.5">
                   {securityReport.recommendations.map((r, i) => (
                     <li key={i} className="text-[8px] font-mono text-muted-foreground flex gap-1">
-                      <span className="text-signal-amber">•</span>
-                      <span>{r}</span>
+                      <span className="text-signal-amber">•</span><span>{r}</span>
                     </li>
                   ))}
                 </ul>
@@ -686,7 +814,10 @@ export function InverseModelPanel() {
           <div className="chart-panel" style={{ height: 170 }}>
             <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">
               Сигнал{noiseLevel > 0 ? ` (σ=${(noiseLevel * 100).toFixed(0)}%)` : " (чистый)"}
-              {dbSelectedIds.length > 0 && <span className="text-signal-amber ml-2">[из БД: {dbSelectedIds.length}]</span>}
+              {autoDetect && classification && (
+                <span className="text-signal-amber ml-2">[авто: {classification.detectedType.toUpperCase()}]</span>
+              )}
+              {dbSelectedIds.length > 0 && <span className="text-signal-amber ml-2">[БД: {dbSelectedIds.length}]</span>}
             </h3>
             <ResponsiveContainer width="100%" height="85%">
               <LineChart data={signalPreview}>
@@ -708,18 +839,18 @@ export function InverseModelPanel() {
                 <div className="flex items-center gap-2 mb-2">
                   <FileText className="w-4 h-4 text-signal-green" />
                   <h3 className="text-xs font-mono font-semibold text-signal-green">
-                    Результат: {DECODER_REGISTRY.find(d => d.id === activeDecoder)?.name}
+                    Результат: {ALL_DECODERS.find(d => d.id === activeDecoder)?.name}
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <p className="text-[9px] font-mono text-muted-foreground mb-1">Оригинал:</p>
-                    <p className="text-[11px] font-mono text-foreground bg-secondary rounded px-2 py-1.5 break-all">{text}</p>
+                    <p className="text-[11px] font-mono text-foreground bg-secondary rounded px-2 py-1.5 break-all max-h-24 overflow-y-auto">{text}</p>
                   </div>
                   <div>
                     <p className="text-[9px] font-mono text-muted-foreground mb-1">Декодировано:</p>
-                    <p className="text-[11px] font-mono text-signal-cyan bg-secondary rounded px-2 py-1.5 break-all">
-                      {activeResult.decodedText.slice(0, 200)}
+                    <p className="text-[11px] font-mono text-signal-cyan bg-secondary rounded px-2 py-1.5 break-all max-h-24 overflow-y-auto">
+                      {activeResult.decodedText || "[пусто]"}
                     </p>
                   </div>
                 </div>
@@ -807,7 +938,7 @@ export function InverseModelPanel() {
                 </div>
               </div>
 
-              {/* Security radar chart */}
+              {/* Security radar + reconstruction metrics */}
               {securityReport && securityRadarData.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="chart-panel" style={{ height: 240 }}>
@@ -827,7 +958,7 @@ export function InverseModelPanel() {
                   {reconstruction && (
                     <div className="chart-panel space-y-2">
                       <h3 className="text-[10px] font-mono font-semibold text-signal-magenta flex items-center gap-1">
-                        <RefreshCw className="w-3 h-3" /> Метрики реконструкции
+                        <RefreshCw className="w-3 h-3" /> Метрики реконструкции (сигнал)
                       </h3>
                       <div className="space-y-1.5 text-[10px] font-mono">
                         <div className="flex justify-between"><span className="text-muted-foreground">MSE (ср. квадр. ошибка):</span>
@@ -847,15 +978,32 @@ export function InverseModelPanel() {
                             reconstruction.correlationCoeff > 0.7 ? "text-signal-amber" : "text-signal-red"
                           }>{reconstruction.correlationCoeff.toFixed(4)}</span>
                         </div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Символов декодировано:</span>
-                          <span className="text-foreground">{activeResult?.symbols.length ?? 0}</span>
-                        </div>
-                        <div className="flex justify-between"><span className="text-muted-foreground">Символов совпало:</span>
-                          <span className="text-foreground">
-                            {activeResult ? signal.symbols.slice(0, activeResult.symbols.length).filter((s, i) => s === activeResult.symbols[i]).length : 0}
-                          </span>
-                        </div>
                       </div>
+                      {activeComparison && (
+                        <>
+                          <h3 className="text-[10px] font-mono font-semibold text-signal-cyan flex items-center gap-1 pt-2 border-t border-border">
+                            <FileText className="w-3 h-3" /> Метрики расшифровки (текст)
+                          </h3>
+                          <div className="space-y-1.5 text-[10px] font-mono">
+                            <div className="flex justify-between"><span className="text-muted-foreground">Точность символов:</span>
+                              <span className={activeComparison.charAccuracy > 0.8 ? "text-signal-green" : activeComparison.charAccuracy > 0.4 ? "text-signal-amber" : "text-signal-red"}>
+                                {(activeComparison.charAccuracy * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Совпадений:</span>
+                              <span className="text-foreground">{activeComparison.matchingChars}/{activeComparison.totalChars}</span>
+                            </div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Edit distance:</span>
+                              <span className="text-foreground">{activeComparison.editDistance}</span>
+                            </div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Символов декод./ориг.:</span>
+                              <span className="text-foreground">
+                                {activeResult ? `${signal.symbols.slice(0, activeResult.symbols.length).filter((s, i) => s === activeResult.symbols[i]).length}/${activeResult.symbols.length}` : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      )}
                       <div className="border-t border-border pt-2 text-[9px] font-mono text-muted-foreground">
                         Полный цикл: текст → символы → s(t) → декодер → символы' → s'(t) → текст'
                       </div>
@@ -906,10 +1054,10 @@ export function InverseModelPanel() {
               <RotateCcw className="w-10 h-10 text-muted-foreground mb-3 opacity-40" />
               <p className="text-sm font-mono text-muted-foreground">Выберите декодер и запустите</p>
               <p className="text-[10px] font-mono text-muted-foreground mt-1">
-                4 типа декодеров · обратная генерация s'(t) · оценка уязвимости
+                {ALL_DECODERS.length} декодеров · обратная генерация s'(t) · оценка уязвимости
               </p>
               <p className="text-[10px] font-mono text-muted-foreground/60 mt-3 max-w-md">
-                Полный цикл: текст → s(t) → декодер → символы' → s'(t) → текст' → оценка взлома
+                Классические: MLP, корреляция, DFT, шаблоны · URH: Манчестер, дифференциальный, ZCR, огибающая, преамбула, битовый срез
               </p>
             </div>
           )}
