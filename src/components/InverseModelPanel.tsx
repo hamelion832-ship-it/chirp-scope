@@ -37,8 +37,15 @@ export function InverseModelPanel() {
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [text, setText] = useState(SAMPLE_TEXTS[0]);
-  const [numSymbols, setNumSymbols] = useState(12);
+  const [numSymbols, setNumSymbols] = useState(20);
   const [noiseLevel, setNoiseLevel] = useState(0);
+
+  // Max symbols based on UTF-8 byte length and SF
+  const maxSymbols = useMemo(() => {
+    const byteLen = new TextEncoder().encode(text).length;
+    const clampedBytes = Math.min(byteLen, 1240);
+    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
+  }, [text, sf]);
   const [activeDecoder, setActiveDecoder] = useState<DecoderType>("mlp");
   const [config, setConfig] = useState<DecoderConfig>(DEFAULT_DECODER_CONFIG);
   const [training, setTraining] = useState(false);
