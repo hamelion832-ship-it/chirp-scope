@@ -85,6 +85,7 @@ export function InverseModelPanel() {
   const [symbolRate, setSymbolRate] = useState(10000);
   const [freqDeviation, setFreqDeviation] = useState(25000);
   const [chipRate, setChipRate] = useState(100000);
+  const [encType, setEncType] = useState<EncryptionType>("none");
 
   const maxSymbols = useMemo(() => getMaxSymbols(text, modType, sf), [text, modType, sf]);
   useEffect(() => { setNumSymbols(prev => Math.min(prev, maxSymbols)); }, [maxSymbols]);
