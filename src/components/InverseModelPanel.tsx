@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, RotateCcw,
   ArrowRightLeft, BarChart3, FileText, Zap, Waves, Copy, Database,
