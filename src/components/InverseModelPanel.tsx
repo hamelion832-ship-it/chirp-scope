@@ -244,12 +244,14 @@ export function InverseModelPanel() {
       originalTextLength: text.length,
       numSymbols,
       protocolClass: autoDetect && classification ? classification.detectedType : modType,
+      encryptionType: encType,
+      encryptionStrength: getEncryptionStrength(encType),
       signalReconstructionMetrics: reconstruction ? {
         mse: reconstruction.mse, snrDb: reconstruction.snrDb, correlationCoeff: reconstruction.correlationCoeff,
       } : undefined,
     });
     setSecurityReport(report);
-  }, [textComparison, mlpResult, classicResults, urhResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols, modType, autoDetect, classification, reconstruction]);
+  }, [textComparison, mlpResult, classicResults, urhResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols, modType, autoDetect, classification, reconstruction, encType]);
 
   useEffect(() => {
     if (Object.keys(textComparison).length > 0) runSecurityAssessment();
