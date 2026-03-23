@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Radio, Activity, Waves, Zap, Save, Tag, Brain, Radar } from "lucide-react";
+import { Radio, Activity, Waves, Zap, Save, Tag, Brain, Radar, RotateCcw } from "lucide-react";
 import { ChartPanel } from "@/components/ChartPanel";
 import { SpectrogramPanel } from "@/components/SpectrogramPanel";
 import { IQPanel } from "@/components/IQPanel";
