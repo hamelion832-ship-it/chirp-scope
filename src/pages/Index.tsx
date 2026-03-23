@@ -10,6 +10,7 @@ import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UnifiedModelPanel } from "@/components/UnifiedModelPanel";
 import { InverseModelPanel } from "@/components/InverseModelPanel";
+import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
@@ -19,10 +20,18 @@ import {
   getIQPoints,
   getIQTrajectory,
 } from "@/lib/lora-signal";
+import {
+  generateModulatedSignal,
+  getMaxSymbols,
+  type ModulationType,
+  type ModulationParams,
+  MODULATION_REGISTRY,
+} from "@/lib/modulation-engine";
 
 const DEFAULT_TEXT = "Философ спокойно создаёт старую книгу.";
 
 const Index = () => {
+  const [modType, setModType] = useState<ModulationType>("lora");
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [cr, setCr] = useState(1);
@@ -30,26 +39,48 @@ const Index = () => {
   const [numSymbols, setNumSymbols] = useState(20);
   const [tags, setTags] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  // FSK/CDMA params
+  const [symbolRate, setSymbolRate] = useState(10000);
+  const [freqDeviation, setFreqDeviation] = useState(25000);
+  const [chipRate, setChipRate] = useState(100000);
 
-  // Max symbols based on text byte length and SF
+  const isLoRa = modType === "lora";
+
   const maxSymbols = useMemo(() => {
-    const byteLen = new TextEncoder().encode(text).length;
-    const clampedBytes = Math.min(byteLen, 1240);
-    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
-  }, [text, sf]);
+    return getMaxSymbols(text, modType, sf);
+  }, [text, modType, sf]);
   const [saving, setSaving] = useState(false);
 
-  const params = useMemo(() => ({
+  const loraParams = useMemo(() => ({
     sf,
     bw: bw * 1000,
     fc: 915e6,
     sampleRate: 500e3,
   }), [sf, bw]);
 
-  const signal = useMemo(() =>
-    generateLoRaSignal(params, text, numSymbols),
-    [params, text, numSymbols]
-  );
+  const signal = useMemo(() => {
+    if (isLoRa) {
+      return generateLoRaSignal(loraParams, text, numSymbols);
+    }
+    const modParams: ModulationParams = {
+      type: modType,
+      sampleRate: modType === "cdma" ? 500000 : 200000,
+      symbolRate,
+      fc: 915e6,
+      freqDeviation,
+      chipRate,
+      spreadingCode: 0,
+    };
+    const mod = generateModulatedSignal(modParams, text, numSymbols);
+    return {
+      time: mod.time,
+      real: mod.real,
+      imag: mod.imag,
+      amplitude: mod.amplitude,
+      symbols: mod.symbols,
+      params: loraParams,
+    };
+  }, [isLoRa, loraParams, modType, text, numSymbols, symbolRate, freqDeviation, chipRate]);
 
   const tSymbol = useMemo(() => (2 ** sf / (bw * 1000)) * 1000, [sf, bw]);
   const duration = signal.symbols.length * tSymbol / 1000; // seconds
@@ -78,8 +109,8 @@ const Index = () => {
   }, [signal]);
 
   const spectrum = useMemo(() =>
-    computeSpectrum(signal.real, signal.imag, params.sampleRate, 512),
-    [signal, params.sampleRate]
+    computeSpectrum(signal.real, signal.imag, loraParams.sampleRate, 512),
+    [signal, loraParams.sampleRate]
   );
 
   const spectrumData = useMemo(() =>
@@ -93,8 +124,8 @@ const Index = () => {
   );
 
   const spectrogram = useMemo(() =>
-    computeSpectrogram(signal.real, signal.imag, params.sampleRate, 64, 16),
-    [signal, params.sampleRate]
+    computeSpectrogram(signal.real, signal.imag, loraParams.sampleRate, 64, 16),
+    [signal, loraParams.sampleRate]
   );
 
   const iqPoints = useMemo(() => getIQPoints(signal.real, signal.imag, 8, 300), [signal]);
@@ -102,7 +133,7 @@ const Index = () => {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
-    const id = await saveSignal(text, params, cr, duration, signal.symbols.length, signal.symbols, tags);
+    const id = await saveSignal(text, loraParams, cr, duration, signal.symbols.length, signal.symbols, tags);
     setSaving(false);
     if (id) {
       toast.success(`Сигнал сохранён (${signal.symbols.length} символов)`);
@@ -110,7 +141,7 @@ const Index = () => {
     } else {
       toast.error("Ошибка сохранения");
     }
-  }, [text, params, cr, duration, signal.symbols, tags]);
+  }, [text, loraParams, cr, duration, signal.symbols, tags]);
 
   const handleSelectFromDB = useCallback((stored: StoredSignal) => {
     setText(stored.message_text);
@@ -130,10 +161,12 @@ const Index = () => {
         </div>
         <div>
           <h1 className="text-lg font-mono font-bold text-foreground">
-            LoRa Signal <span className="text-signal-green glow-green">System</span>
+            Signal <span className="text-signal-green glow-green">System</span>
           </h1>
           <p className="text-[10px] text-muted-foreground font-mono">
-            SF={sf} · BW={bw}кГц · CR=4/{4 + cr} · T<sub>sym</sub>={tSymbol.toFixed(2)}мс · {signal.symbols.length} символов · {(duration * 1000).toFixed(1)}мс
+            {MODULATION_REGISTRY.find(m => m.id === modType)?.name}
+            {isLoRa && <> · SF={sf} · BW={bw}кГц · CR=4/{4 + cr} · T<sub>sym</sub>={tSymbol.toFixed(2)}мс</>}
+            {" "}· {signal.symbols.length} символов · {(duration * 1000).toFixed(1)}мс
           </p>
         </div>
       </header>
@@ -155,35 +188,65 @@ const Index = () => {
         </TabsList>
 
         <TabsContent value="dashboard">
+          {/* Protocol selector */}
+          <div className="chart-panel mb-3">
+            <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
+            <ProtocolSelector value={modType} onChange={setModType} />
+          </div>
           {/* Controls */}
           <div className="chart-panel mb-3 flex flex-wrap gap-3 items-end">
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <Zap className="w-3 h-3" /> SF
-              </label>
-              <select value={sf} onChange={e => setSf(Number(e.target.value))}
-                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-                {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <Waves className="w-3 h-3" /> BW
-              </label>
-              <select value={bw} onChange={e => setBw(Number(e.target.value))}
-                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-                {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground">CR</label>
-              <select value={cr} onChange={e => setCr(Number(e.target.value))}
-                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-                {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
-              </select>
-            </div>
+            {isLoRa && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> SF
+                  </label>
+                  <select value={sf} onChange={e => setSf(Number(e.target.value))}
+                    className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                    {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                    <Waves className="w-3 h-3" /> BW
+                  </label>
+                  <select value={bw} onChange={e => setBw(Number(e.target.value))}
+                    className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                    {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted-foreground">CR</label>
+                  <select value={cr} onChange={e => setCr(Number(e.target.value))}
+                    className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                    {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+            {!isLoRa && ["2fsk", "4fsk"].includes(modType) && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted-foreground">Девиация Гц</label>
+                <input type="number" value={freqDeviation} onChange={e => setFreqDeviation(Number(e.target.value))}
+                  className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border w-24" />
+              </div>
+            )}
+            {modType === "cdma" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted-foreground">Chip Rate</label>
+                <input type="number" value={chipRate} onChange={e => setChipRate(Number(e.target.value))}
+                  className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border w-24" />
+              </div>
+            )}
+            {!isLoRa && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted-foreground">Symbol Rate</label>
+                <select value={symbolRate} onChange={e => setSymbolRate(Number(e.target.value))}
+                  className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border">
+                  {[1000, 5000, 10000, 20000, 50000].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">

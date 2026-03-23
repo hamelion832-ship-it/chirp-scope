@@ -17,6 +17,12 @@ import {
   reconstructFromSymbols, compareSignals, assessSecurity,
   type ReconstructedSignal, type SecurityAssessment,
 } from "@/lib/signal-reconstruct";
+import {
+  generateModulatedSignal, decodePSK, decodeFSK, decodeCDMA,
+  reconstructProtocolSignal, getMaxSymbols,
+  MODULATION_REGISTRY, type ModulationType, type ModulationParams,
+} from "@/lib/modulation-engine";
+import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
@@ -57,17 +63,21 @@ const RISK_ICONS: Record<string, React.ElementType> = {
 };
 
 export function InverseModelPanel() {
+  const [modType, setModType] = useState<ModulationType>("lora");
+  const isLoRa = modType === "lora";
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [text, setText] = useState(SAMPLE_TEXTS[0]);
   const [numSymbols, setNumSymbols] = useState(20);
   const [noiseLevel, setNoiseLevel] = useState(0);
+  // Non-LoRa params
+  const [symbolRate, setSymbolRate] = useState(10000);
+  const [freqDeviation, setFreqDeviation] = useState(25000);
+  const [chipRate, setChipRate] = useState(100000);
 
   const maxSymbols = useMemo(() => {
-    const byteLen = new TextEncoder().encode(text).length;
-    const clampedBytes = Math.min(byteLen, 1240);
-    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
-  }, [text, sf]);
+    return getMaxSymbols(text, modType, sf);
+  }, [text, modType, sf]);
 
   useEffect(() => {
     setNumSymbols(prev => Math.min(prev, maxSymbols));
@@ -117,9 +127,17 @@ export function InverseModelPanel() {
   }, [activeDbSignal]);
 
   const signal = useMemo(() => {
-    const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
-    return generateLoRaSignal(params, text, numSymbols);
-  }, [sf, bw, text, numSymbols]);
+    if (isLoRa) {
+      const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
+      return generateLoRaSignal(params, text, numSymbols);
+    }
+    const modParams: ModulationParams = {
+      type: modType, sampleRate: modType === "cdma" ? 500000 : 200000,
+      symbolRate, fc: 915e6, freqDeviation, chipRate, spreadingCode: 0,
+    };
+    const mod = generateModulatedSignal(modParams, text, numSymbols);
+    return { time: mod.time, real: mod.real, imag: mod.imag, amplitude: mod.amplitude, symbols: mod.symbols, params: { sf, bw: bw * 1000, fc: 915e6, sampleRate: modParams.sampleRate } };
+  }, [isLoRa, modType, sf, bw, text, numSymbols, symbolRate, freqDeviation, chipRate]);
 
   const mergedTrainingSignals = useMemo(() => {
     if (signalSourceMode !== "db" || dbSelectedIds.length <= 1) return null;
@@ -145,17 +163,50 @@ export function InverseModelPanel() {
     return { ...signal, real, imag };
   }, [signal, noiseLevel]);
 
-  const M = 2 ** sf;
-  const samplesPerSymbol = Math.floor(500e3 * (M / (bw * 1000)));
+  const meta = MODULATION_REGISTRY.find(m => m.id === modType)!;
+  const bitsPerSym = isLoRa ? sf : meta.bitsPerSymbol;
+  const M = isLoRa ? 2 ** sf : 2 ** bitsPerSym;
+  const sampleRate = isLoRa ? 500e3 : (modType === "cdma" ? 500000 : 200000);
+  const samplesPerSymbol = isLoRa
+    ? Math.floor(500e3 * (M / (bw * 1000)))
+    : Math.floor(sampleRate / symbolRate);
 
   // Run reconstruction whenever we have a result
   const runReconstruction = useCallback((decodedSymbols: number[]) => {
-    const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
-    const recon = reconstructFromSymbols(decodedSymbols, params);
-    const cmp = compareSignals(signal, recon);
-    setReconstruction(cmp);
-    return cmp;
-  }, [sf, bw, signal]);
+    if (isLoRa) {
+      const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
+      const recon = reconstructFromSymbols(decodedSymbols, params);
+      const cmp = compareSignals(signal, recon);
+      setReconstruction(cmp);
+      return cmp;
+    }
+    // Non-LoRa: reconstruct and compare
+    const modParams: ModulationParams = {
+      type: modType, sampleRate, symbolRate, fc: 915e6, freqDeviation, chipRate, spreadingCode: 0,
+    };
+    const recon = reconstructProtocolSignal(decodedSymbols, modParams);
+    const len = Math.min(signal.real.length, recon.real.length);
+    const errorReal = new Array(len);
+    const errorImag = new Array(len);
+    let sumErr2 = 0, sumOrig2 = 0, peakError = 0;
+    let sumOR = 0, sumO = 0, sumR = 0, sumO2 = 0, sumR2 = 0;
+    for (let i = 0; i < len; i++) {
+      const er = signal.real[i] - recon.real[i];
+      const ei = signal.imag[i] - recon.imag[i];
+      errorReal[i] = er; errorImag[i] = ei;
+      sumErr2 += er*er + ei*ei;
+      sumOrig2 += signal.real[i]**2 + signal.imag[i]**2;
+      peakError = Math.max(peakError, Math.sqrt(er*er + ei*ei));
+      sumOR += signal.real[i]*recon.real[i]; sumO += signal.real[i]; sumR += recon.real[i];
+      sumO2 += signal.real[i]**2; sumR2 += recon.real[i]**2;
+    }
+    const mse = sumErr2 / (len || 1);
+    const snrDb = sumErr2 > 0 ? 10*Math.log10(sumOrig2/sumErr2) : 100;
+    const denom = Math.sqrt((len*sumO2-sumO**2)*(len*sumR2-sumR**2));
+    const correlationCoeff = denom > 0 ? (len*sumOR-sumO*sumR)/denom : 0;
+    setReconstruction({ time: signal.time.slice(0,len), real: recon.real.slice(0,len), imag: recon.imag.slice(0,len), errorReal, errorImag, mse, snrDb, peakError, correlationCoeff });
+    return null;
+  }, [isLoRa, modType, sf, bw, signal, sampleRate, symbolRate, freqDeviation, chipRate]);
 
   // Run security assessment when all results are available
   const runSecurityAssessment = useCallback(() => {
@@ -213,6 +264,31 @@ export function InverseModelPanel() {
 
   const runClassicDecoder = useCallback((type: DecoderType) => {
     try {
+      if (!isLoRa) {
+        // Protocol-specific decoders
+        let protResult: import("@/lib/modulation-engine").ProtocolDecodedResult;
+        const sr = sampleRate;
+        if (["bpsk", "qpsk", "8psk"].includes(modType)) {
+          protResult = decodePSK(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym);
+        } else if (["2fsk", "4fsk"].includes(modType)) {
+          protResult = decodeFSK(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym, sr, freqDeviation);
+        } else {
+          const chipsPerSym = Math.floor(chipRate / symbolRate);
+          const sampPerChip = Math.max(1, Math.floor(sr / chipRate));
+          protResult = decodeCDMA(noisySignal.real, sampPerChip, chipsPerSym, 0);
+        }
+        // Wrap as ClassicDecodedResult
+        const fakeResult: ClassicDecodedResult = {
+          symbols: protResult.symbols, confidence: protResult.confidence,
+          decodedBits: [], decodedText: protResult.decodedText, scores: [],
+          method: type, processingTimeMs: protResult.processingTimeMs,
+        };
+        setClassicResults(prev => ({ ...prev, [type]: fakeResult }));
+        setTextComparison(prev => ({ ...prev, [type]: compareTexts(text, protResult.decodedText) }));
+        runReconstruction(protResult.symbols);
+        toast.success(`${protResult.method}: ${protResult.processingTimeMs.toFixed(0)}мс`);
+        return;
+      }
       let result: ClassicDecodedResult;
       const bwHz = bw * 1000;
       const sr = 500e3;
@@ -236,7 +312,7 @@ export function InverseModelPanel() {
       toast.error(`Ошибка ${type}`);
       console.error(e);
     }
-  }, [noisySignal, samplesPerSymbol, sf, bw, text, runReconstruction]);
+  }, [isLoRa, modType, noisySignal, samplesPerSymbol, sf, bw, bitsPerSym, sampleRate, symbolRate, freqDeviation, chipRate, text, runReconstruction]);
 
   const runAll = useCallback(async () => {
     setTraining(true);
@@ -332,6 +408,11 @@ export function InverseModelPanel() {
 
   return (
     <div className="space-y-3">
+      {/* Protocol selector */}
+      <div className="chart-panel">
+        <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
+        <ProtocolSelector value={modType} onChange={setModType} compact />
+      </div>
       {/* Header */}
       <div className="chart-panel space-y-2">
         <div className="flex flex-wrap gap-3 items-center">
@@ -391,7 +472,7 @@ export function InverseModelPanel() {
                 <Zap className="w-3 h-3" /> Сигнал
               </h3>
               <div className="space-y-1.5">
-                {([
+                {isLoRa && ([
                   ["SF", sf, (v: number) => setSf(v), [7, 8, 9, 10]],
                   ["BW кГц", bw, (v: number) => setBw(v), [125, 250, 500]],
                 ] as [string, number, (v: number) => void, number[]][]).map(([label, val, setter, opts]) => (
@@ -403,6 +484,29 @@ export function InverseModelPanel() {
                     </select>
                   </div>
                 ))}
+                {!isLoRa && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">Symbol Rate</span>
+                    <select value={symbolRate} onChange={e => setSymbolRate(Number(e.target.value))}
+                      className="bg-secondary text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono border border-border">
+                      {[1000, 5000, 10000, 20000].map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </div>
+                )}
+                {["2fsk", "4fsk"].includes(modType) && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">Девиация</span>
+                    <input type="number" value={freqDeviation} onChange={e => setFreqDeviation(Number(e.target.value))}
+                      className="bg-secondary text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono border border-border w-20 text-right" />
+                  </div>
+                )}
+                {modType === "cdma" && (
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-muted-foreground">Chip Rate</span>
+                    <input type="number" value={chipRate} onChange={e => setChipRate(Number(e.target.value))}
+                      className="bg-secondary text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono border border-border w-20 text-right" />
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-[10px] font-mono">
                   <span className="text-muted-foreground">Символов: {numSymbols}/{maxSymbols}</span>
                   <input type="range" min={1} max={maxSymbols} value={Math.min(numSymbols, maxSymbols)}

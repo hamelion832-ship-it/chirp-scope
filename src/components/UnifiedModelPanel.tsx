@@ -20,6 +20,11 @@ import {
   type UnifiedCoeffs,
   type UnifiedTrainingResult,
 } from "@/lib/fhss-signal";
+import {
+  generateModulatedSignal, getMaxSymbols,
+  MODULATION_REGISTRY, type ModulationType, type ModulationParams,
+} from "@/lib/modulation-engine";
+import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -41,6 +46,7 @@ export function UnifiedModelPanel() {
   const [signals, setSignals] = useState<StoredSignal[]>([]);
   const [selectedDbIds, setSelectedDbIds] = useState<string[]>([]);
   const [signalSource, setSignalSource] = useState<SignalSource>("fhss");
+  const [modType, setModType] = useState<ModulationType>("lora");
 
   // FHSS params
   const [fhssParams, setFhssParams] = useState<FHSSParams>(DEFAULT_FHSS_PARAMS);
@@ -83,10 +89,20 @@ export function UnifiedModelPanel() {
 
   // Build samples from DB signal
   const buildDbSamples = useCallback((stored: StoredSignal) => {
-    const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
     const byteLen = new TextEncoder().encode(stored.message_text).length;
-    const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
-    const sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
+    let sig: { time: number[]; real: number[] };
+    if (modType === "lora") {
+      const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
+      const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
+      sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
+    } else {
+      const maxSym = getMaxSymbols(stored.message_text, modType);
+      const modParams: ModulationParams = {
+        type: modType, sampleRate: modType === "cdma" ? 500000 : 200000,
+        symbolRate: 10000, fc: 915e6, freqDeviation: 25000, chipRate: 100000, spreadingCode: 0,
+      };
+      sig = generateModulatedSignal(modParams, stored.message_text, Math.min(stored.n_symbols, maxSym));
+    }
     const maxPts = Math.min(sig.real.length, 500);
     const step = Math.max(1, Math.floor(sig.real.length / maxPts));
     const samples: { t: number; y: number }[] = [];
@@ -94,7 +110,7 @@ export function UnifiedModelPanel() {
       samples.push({ t: sig.time[i] * 1000, y: sig.real[i] });
     }
     return samples;
-  }, []);
+  }, [modType]);
 
   // Train
   const handleTrain = useCallback(async () => {
@@ -273,6 +289,11 @@ export function UnifiedModelPanel() {
 
   return (
     <div className="space-y-3">
+      {/* Protocol selector */}
+      <div className="chart-panel">
+        <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
+        <ProtocolSelector value={modType} onChange={setModType} compact />
+      </div>
       {/* Header controls */}
       <div className="chart-panel space-y-3">
         <div className="flex flex-wrap gap-3 items-center">
