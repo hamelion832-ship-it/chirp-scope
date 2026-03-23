@@ -450,6 +450,11 @@ export function NeuralFormulaPanel() {
                   title={`Сохранён как: ${storedMod}`}>
                   {storedMod.toUpperCase().slice(0, 4)}
                 </span>
+                {s.encryption_type && s.encryption_type !== "none" && (
+                  <span className="text-[8px] px-1 py-0.5 rounded border bg-signal-amber/10 text-signal-amber border-signal-amber/20" title={`Шифр: ${s.encryption_type}`}>
+                    🔒
+                  </span>
+                )}
                 {/* Protocol result badges */}
                 {signalResults.map(({ proto, result: r }) => {
                   const g = getProtocolGroup(proto);
