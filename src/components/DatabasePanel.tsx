@@ -175,6 +175,14 @@ export function DatabasePanel() {
           {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF{v}</option>)}
         </select>
 
+        <select value={modFilter ?? ""} onChange={e => setModFilter(e.target.value || undefined)}
+          className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-[10px] font-mono border border-border">
+          <option value="">Все протоколы</option>
+          {["lora", "bpsk", "qpsk", "8psk", "2fsk", "4fsk", "cdma"].map(v => (
+            <option key={v} value={v}>{v.toUpperCase()}</option>
+          ))}
+        </select>
+
         <button onClick={load} className="p-1.5 rounded hover:bg-secondary transition-colors border border-border">
           <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
         </button>
