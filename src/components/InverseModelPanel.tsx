@@ -127,9 +127,17 @@ export function InverseModelPanel() {
   }, [activeDbSignal]);
 
   const signal = useMemo(() => {
-    const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
-    return generateLoRaSignal(params, text, numSymbols);
-  }, [sf, bw, text, numSymbols]);
+    if (isLoRa) {
+      const params = { sf, bw: bw * 1000, fc: 915e6, sampleRate: 500e3 };
+      return generateLoRaSignal(params, text, numSymbols);
+    }
+    const modParams: ModulationParams = {
+      type: modType, sampleRate: modType === "cdma" ? 500000 : 200000,
+      symbolRate, fc: 915e6, freqDeviation, chipRate, spreadingCode: 0,
+    };
+    const mod = generateModulatedSignal(modParams, text, numSymbols);
+    return { time: mod.time, real: mod.real, imag: mod.imag, amplitude: mod.amplitude, symbols: mod.symbols, params: { sf, bw: bw * 1000, fc: 915e6, sampleRate: modParams.sampleRate } };
+  }, [isLoRa, modType, sf, bw, text, numSymbols, symbolRate, freqDeviation, chipRate]);
 
   const mergedTrainingSignals = useMemo(() => {
     if (signalSourceMode !== "db" || dbSelectedIds.length <= 1) return null;
