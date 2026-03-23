@@ -295,7 +295,7 @@ const Index = () => {
               <IQPanel points={iqPoints} trajectory={iqTrajectory} />
               <SymbolsChart symbols={signal.symbols} />
               <div className="chart-panel flex flex-col h-full">
-                <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2" style={{ textShadow: "0 0 10px hsl(40 95% 55% / 0.4)" }}>
+                <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2">
                   Параметры сигнала
                 </h3>
                 <div className="flex-1 space-y-1.5 text-[11px] font-mono text-muted-foreground">

@@ -39,7 +39,7 @@ export function StatsPanel({ refreshKey }: StatsProps) {
     <div className="chart-panel flex flex-col h-full">
       <div className="flex items-center gap-2 mb-2">
         <BarChart2 className="w-4 h-4 text-signal-cyan" />
-        <h3 className="text-xs font-mono font-semibold text-signal-cyan glow-cyan">Статистика БД</h3>
+        <h3 className="text-xs font-mono font-semibold text-signal-cyan">Статистика БД</h3>
       </div>
       <div className="grid grid-cols-3 gap-2 mb-2">
         <div className="bg-secondary rounded p-2 text-center">
@@ -60,11 +60,11 @@ export function StatsPanel({ refreshKey }: StatsProps) {
           <p className="text-[9px] font-mono text-muted-foreground mb-1">По SF</p>
           <ResponsiveContainer width="100%" height="90%">
             <BarChart data={sfData}>
-              <CartesianGrid stroke="hsl(220 15% 20%)" strokeDasharray="2 4" />
-              <XAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(215 15% 50%)" }} />
-              <YAxis tick={{ fontSize: 8, fill: "hsl(215 15% 50%)" }} width={20} />
+              <CartesianGrid stroke="hsl(220 13% 90%)" strokeDasharray="2 4" />
+              <XAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(215 15% 55%)" }} />
+              <YAxis tick={{ fontSize: 8, fill: "hsl(215 15% 55%)" }} width={20} />
               <Bar dataKey="count" radius={[3, 3, 0, 0]}>
-                {sfData.map((_, i) => <Cell key={i} fill={`hsl(${142 + i * 20} 70% 50%)`} />)}
+                {sfData.map((_, i) => <Cell key={i} fill={`hsl(${142 + i * 20} 65% 45%)`} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -73,10 +73,10 @@ export function StatsPanel({ refreshKey }: StatsProps) {
           <p className="text-[9px] font-mono text-muted-foreground mb-1">По BW</p>
           <ResponsiveContainer width="100%" height="90%">
             <BarChart data={bwData}>
-              <CartesianGrid stroke="hsl(220 15% 20%)" strokeDasharray="2 4" />
-              <XAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(215 15% 50%)" }} />
-              <YAxis tick={{ fontSize: 8, fill: "hsl(215 15% 50%)" }} width={20} />
-              <Bar dataKey="count" fill="hsl(40 95% 55%)" radius={[3, 3, 0, 0]} />
+              <CartesianGrid stroke="hsl(220 13% 90%)" strokeDasharray="2 4" />
+              <XAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(215 15% 55%)" }} />
+              <YAxis tick={{ fontSize: 8, fill: "hsl(215 15% 55%)" }} width={20} />
+              <Bar dataKey="count" fill="hsl(35 92% 48%)" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

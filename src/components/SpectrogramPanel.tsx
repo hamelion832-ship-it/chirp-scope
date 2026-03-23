@@ -3,7 +3,7 @@ import type { SpectrogramData } from "@/lib/lora-signal";
 
 interface SpectrogramPanelProps {
   data: SpectrogramData;
-  bw: number; // in Hz
+  bw: number;
 }
 
 // Viridis-like colormap
@@ -39,7 +39,6 @@ export function SpectrogramPanel({ data, bw }: SpectrogramPanelProps) {
     const numTime = data.power.length;
     const numFreq = data.power[0].length;
 
-    // Filter to show only frequencies within BW
     const bwKhz = bw / 1000;
     const freqMin = -bwKhz / 2;
     const freqMax = bwKhz / 2;
@@ -61,7 +60,6 @@ export function SpectrogramPanel({ data, bw }: SpectrogramPanelProps) {
     for (let px = 0; px < width; px++) {
       const tIdx = Math.floor((px / width) * numTime);
       for (let py = 0; py < height; py++) {
-        // Flip Y so low freq at bottom
         const fIdxRaw = Math.floor(((height - 1 - py) / height) * freqIndices.length);
         const fIdx = freqIndices[Math.min(fIdxRaw, freqIndices.length - 1)];
         
@@ -84,7 +82,7 @@ export function SpectrogramPanel({ data, bw }: SpectrogramPanelProps) {
 
   return (
     <div className="chart-panel flex flex-col h-full">
-      <h3 className="text-sm font-mono font-semibold text-signal-amber mb-3" style={{ textShadow: "0 0 10px hsl(40 95% 55% / 0.6)" }}>
+      <h3 className="text-sm font-mono font-semibold text-signal-amber mb-3">
         Спектрограмма (частотно-временное распределение)
       </h3>
       <div className="flex-1 min-h-0 relative">
@@ -92,11 +90,11 @@ export function SpectrogramPanel({ data, bw }: SpectrogramPanelProps) {
           ref={canvasRef}
           width={400}
           height={200}
-          className="w-full h-full rounded"
+          className="w-full h-full rounded border border-border"
           style={{ imageRendering: "pixelated" }}
         />
-        <div className="absolute bottom-1 left-2 text-[10px] font-mono text-muted-foreground">{timeRange}</div>
-        <div className="absolute top-1 right-2 text-[10px] font-mono text-muted-foreground">±{(bw / 2000).toFixed(0)} кГц</div>
+        <div className="absolute bottom-1 left-2 text-[10px] font-mono text-muted-foreground bg-background/80 px-1 rounded">{timeRange}</div>
+        <div className="absolute top-1 right-2 text-[10px] font-mono text-muted-foreground bg-background/80 px-1 rounded">±{(bw / 2000).toFixed(0)} кГц</div>
       </div>
       <div className="flex justify-between text-[10px] font-mono text-muted-foreground mt-1">
         <span>Время (мс) →</span>
