@@ -91,15 +91,16 @@ export function UnifiedModelPanel() {
   // Build samples from DB signal
   const buildDbSamples = useCallback((stored: StoredSignal) => {
     const byteLen = new TextEncoder().encode(stored.message_text).length;
+    const effectiveModType = (stored.mod_type || modType) as ModulationType;
     let sig: { time: number[]; real: number[] };
-    if (modType === "lora") {
+    if (effectiveModType === "lora") {
       const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
       const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
       sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
     } else {
-      const maxSym = getMaxSymbols(stored.message_text, modType);
+      const maxSym = getMaxSymbols(stored.message_text, effectiveModType);
       const modParams: ModulationParams = {
-        type: modType, sampleRate: modType === "cdma" ? 500000 : 200000,
+        type: effectiveModType, sampleRate: effectiveModType === "cdma" ? 500000 : 200000,
         symbolRate: 10000, fc: 915e6, freqDeviation: 25000, chipRate: 100000, spreadingCode: 0,
       };
       sig = generateModulatedSignal(modParams, stored.message_text, Math.min(stored.n_symbols, maxSym));
@@ -419,7 +420,8 @@ export function UnifiedModelPanel() {
                 </div>
               </div>
               {signals.map(s => {
-                const g = getProtocolGroup(modType);
+                const storedMod = (s.mod_type || "lora") as ModulationType;
+                const g = getProtocolGroup(storedMod);
                 return (
                 <div key={s.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-0.5 ${
@@ -432,7 +434,7 @@ export function UnifiedModelPanel() {
                   <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 24)}</span>
                   <span className="text-muted-foreground text-[9px]">SF{s.sf}</span>
                   <span className={`text-[8px] px-1 py-0.5 rounded border bg-${g.color}/10 text-${g.color} border-${g.color}/20`}>
-                    {modType.toUpperCase().slice(0, 4)}
+                    {storedMod.toUpperCase().slice(0, 4)}
                   </span>
                 </div>
                 );
