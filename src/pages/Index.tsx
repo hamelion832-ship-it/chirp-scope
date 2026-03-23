@@ -149,6 +149,9 @@ const Index = () => {
           <TabsTrigger value="unified" className="font-mono text-xs data-[state=active]:text-signal-magenta">
             <Radar className="w-3 h-3 mr-1.5" /> Единая модель
           </TabsTrigger>
+          <TabsTrigger value="inverse" className="font-mono text-xs data-[state=active]:text-signal-amber">
+            <RotateCcw className="w-3 h-3 mr-1.5" /> Декодер
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard">
