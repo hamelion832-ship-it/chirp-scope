@@ -47,7 +47,6 @@ export function UnifiedModelPanel() {
   const [selectedDbIds, setSelectedDbIds] = useState<string[]>([]);
   const [signalSource, setSignalSource] = useState<SignalSource>("fhss");
   const [modType, setModType] = useState<ModulationType>("lora");
-  const [signalSource, setSignalSource] = useState<SignalSource>("fhss");
 
   // FHSS params
   const [fhssParams, setFhssParams] = useState<FHSSParams>(DEFAULT_FHSS_PARAMS);
