@@ -31,6 +31,7 @@ const DECODER_ICONS: Record<string, React.ElementType> = {
   Brain, Waves, Zap, Copy,
 };
 
+type SignalSourceMode = "manual" | "db" | "unified";
 type AnyResult = { method: DecoderType; symbols: number[]; confidence: number[]; decodedText: string; processingTimeMs?: number };
 
 export function InverseModelPanel() {
