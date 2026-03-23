@@ -235,6 +235,12 @@ export function DatabasePanel() {
                             className="bg-secondary border border-border rounded px-1 py-0.5 w-full text-[10px]" />
                         </td>
                         <td className="p-1.5">
+                          <select value={editData.mod_type ?? "lora"} onChange={e => setEditData(d => ({ ...d, mod_type: e.target.value }))}
+                            className="bg-secondary border border-border rounded px-1 py-0.5 text-[10px] w-16">
+                            {["lora", "bpsk", "qpsk", "8psk", "2fsk", "4fsk", "cdma"].map(v => <option key={v} value={v}>{v.toUpperCase()}</option>)}
+                          </select>
+                        </td>
+                        <td className="p-1.5">
                           <select value={editData.sf} onChange={e => setEditData(d => ({ ...d, sf: Number(e.target.value) }))}
                             className="bg-secondary border border-border rounded px-1 py-0.5 text-[10px] w-12">
                             {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>{v}</option>)}
