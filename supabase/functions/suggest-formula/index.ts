@@ -21,6 +21,9 @@ Available formula types:
 3. "gaussian" — y(t) = A·exp(-(t-μ)²/(2σ²))·cos(2πf₀t + φ) + C — best for localized wave packets, burst signals
 4. "harmonics" — y(t) = A₁sin(2πf₁t) + A₂sin(2πf₂t) + A₃sin(2πf₃t) + C — best for periodic multi-frequency signals
 5. "polynomial" — y(t) = a₀ + a₁t + a₂t² + a₃t³ + a₄t⁴ + a₅t⁵ — best for smooth envelope approximation
+6. "lorentzian" — y(t) = A·γ²/((t-t₀)²+γ²)·cos(2πf₀t+φ) + C — best for resonance peaks, spectral lines
+7. "fm" — y(t) = A·cos(2π·f₀t + β·sin(2π·fm·t) + φ) + C — best for FM/GFSK signals
+8. "exp_rise" — y(t) = A·(1-e^(-t/τ))·sin(2πf₀t+φ) + C — best for transient/startup responses
 
 For unified FHSS+Channel models, analyze: signal parameters Θ (text), FHSS parameters Φ (hopping), and channel parameters Ψ (propagation).
 
