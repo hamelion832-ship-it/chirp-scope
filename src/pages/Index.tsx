@@ -10,6 +10,7 @@ import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { UnifiedModelPanel } from "@/components/UnifiedModelPanel";
 import { InverseModelPanel } from "@/components/InverseModelPanel";
+import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
@@ -19,10 +20,18 @@ import {
   getIQPoints,
   getIQTrajectory,
 } from "@/lib/lora-signal";
+import {
+  generateModulatedSignal,
+  getMaxSymbols,
+  type ModulationType,
+  type ModulationParams,
+  MODULATION_REGISTRY,
+} from "@/lib/modulation-engine";
 
 const DEFAULT_TEXT = "Философ спокойно создаёт старую книгу.";
 
 const Index = () => {
+  const [modType, setModType] = useState<ModulationType>("lora");
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [cr, setCr] = useState(1);
@@ -30,13 +39,16 @@ const Index = () => {
   const [numSymbols, setNumSymbols] = useState(20);
   const [tags, setTags] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  // FSK/CDMA params
+  const [symbolRate, setSymbolRate] = useState(10000);
+  const [freqDeviation, setFreqDeviation] = useState(25000);
+  const [chipRate, setChipRate] = useState(100000);
 
-  // Max symbols based on text byte length and SF
+  const isLoRa = modType === "lora";
+
   const maxSymbols = useMemo(() => {
-    const byteLen = new TextEncoder().encode(text).length;
-    const clampedBytes = Math.min(byteLen, 1240);
-    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
-  }, [text, sf]);
+    return getMaxSymbols(text, modType, sf);
+  }, [text, modType, sf]);
   const [saving, setSaving] = useState(false);
 
   const params = useMemo(() => ({
