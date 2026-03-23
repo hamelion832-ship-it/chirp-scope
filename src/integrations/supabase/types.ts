@@ -16,53 +16,77 @@ export type Database = {
     Tables: {
       signals: {
         Row: {
+          bits_per_symbol: number | null
           bw: number
+          chip_rate: number | null
           cr: number
           created_at: string
           duration: number
+          encryption_key: string | null
+          encryption_type: string | null
           fc: number
+          freq_deviation: number | null
           id: string
           message_length: number
           message_text: string
           metadata: Json | null
           mod_type: string
           n_symbols: number
+          sample_rate: number | null
           sf: number
           signal_hash: string
+          snr_db: number | null
+          symbol_rate: number | null
           symbols_preview: Json | null
           tags: string | null
         }
         Insert: {
+          bits_per_symbol?: number | null
           bw: number
+          chip_rate?: number | null
           cr?: number
           created_at?: string
           duration: number
+          encryption_key?: string | null
+          encryption_type?: string | null
           fc?: number
+          freq_deviation?: number | null
           id?: string
           message_length: number
           message_text: string
           metadata?: Json | null
           mod_type?: string
           n_symbols: number
+          sample_rate?: number | null
           sf: number
           signal_hash: string
+          snr_db?: number | null
+          symbol_rate?: number | null
           symbols_preview?: Json | null
           tags?: string | null
         }
         Update: {
+          bits_per_symbol?: number | null
           bw?: number
+          chip_rate?: number | null
           cr?: number
           created_at?: string
           duration?: number
+          encryption_key?: string | null
+          encryption_type?: string | null
           fc?: number
+          freq_deviation?: number | null
           id?: string
           message_length?: number
           message_text?: string
           metadata?: Json | null
           mod_type?: string
           n_symbols?: number
+          sample_rate?: number | null
           sf?: number
           signal_hash?: string
+          snr_db?: number | null
+          symbol_rate?: number | null
           symbols_preview?: Json | null
           tags?: string | null
         }
