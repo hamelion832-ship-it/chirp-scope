@@ -69,7 +69,8 @@ export async function saveSignal(
 
 export async function fetchSignals(
   search?: string,
-  sfFilter?: number
+  sfFilter?: number,
+  modTypeFilter?: string
 ): Promise<StoredSignal[]> {
   let query = supabase
     .from("signals")
@@ -82,6 +83,9 @@ export async function fetchSignals(
   }
   if (sfFilter) {
     query = query.eq("sf", sfFilter);
+  }
+  if (modTypeFilter) {
+    query = query.eq("mod_type", modTypeFilter);
   }
 
   const { data, error } = await query;
@@ -100,17 +104,20 @@ export async function deleteSignal(id: string): Promise<boolean> {
 export async function getSignalStats() {
   const { data: signals } = await supabase
     .from("signals")
-    .select("sf, bw, message_length, created_at");
+    .select("sf, bw, message_length, created_at, mod_type");
 
   if (!signals || signals.length === 0) return null;
 
   const sfCounts: Record<number, number> = {};
   const bwCounts: Record<number, number> = {};
+  const modTypeCounts: Record<string, number> = {};
   let totalLength = 0;
 
   for (const s of signals) {
     sfCounts[s.sf] = (sfCounts[s.sf] || 0) + 1;
     bwCounts[s.bw] = (bwCounts[s.bw] || 0) + 1;
+    const mt = (s as any).mod_type || "lora";
+    modTypeCounts[mt] = (modTypeCounts[mt] || 0) + 1;
     totalLength += s.message_length;
   }
 
@@ -119,5 +126,6 @@ export async function getSignalStats() {
     avgLength: totalLength / signals.length,
     sfCounts,
     bwCounts,
+    modTypeCounts,
   };
 }
