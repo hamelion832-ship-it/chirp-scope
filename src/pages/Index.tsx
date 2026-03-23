@@ -188,8 +188,65 @@ const Index = () => {
         </TabsList>
 
         <TabsContent value="dashboard">
+          {/* Protocol selector */}
+          <div className="chart-panel mb-3">
+            <label className="text-[10px] font-mono text-muted-foreground mb-1 block">Протокол модуляции</label>
+            <ProtocolSelector value={modType} onChange={setModType} />
+          </div>
           {/* Controls */}
           <div className="chart-panel mb-3 flex flex-wrap gap-3 items-end">
+            {isLoRa && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> SF
+                  </label>
+                  <select value={sf} onChange={e => setSf(Number(e.target.value))}
+                    className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                    {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                    <Waves className="w-3 h-3" /> BW
+                  </label>
+                  <select value={bw} onChange={e => setBw(Number(e.target.value))}
+                    className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                    {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-mono text-muted-foreground">CR</label>
+                  <select value={cr} onChange={e => setCr(Number(e.target.value))}
+                    className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                    {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+            {!isLoRa && ["2fsk", "4fsk"].includes(modType) && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted-foreground">Девиация Гц</label>
+                <input type="number" value={freqDeviation} onChange={e => setFreqDeviation(Number(e.target.value))}
+                  className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border w-24" />
+              </div>
+            )}
+            {modType === "cdma" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted-foreground">Chip Rate</label>
+                <input type="number" value={chipRate} onChange={e => setChipRate(Number(e.target.value))}
+                  className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border w-24" />
+              </div>
+            )}
+            {!isLoRa && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-mono text-muted-foreground">Symbol Rate</label>
+                <select value={symbolRate} onChange={e => setSymbolRate(Number(e.target.value))}
+                  className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border">
+                  {[1000, 5000, 10000, 20000, 50000].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
                 <Zap className="w-3 h-3" /> SF
