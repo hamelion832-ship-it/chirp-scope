@@ -113,6 +113,14 @@ export function DatabasePanel() {
     }));
   }, [stats]);
 
+  const encTypeData = useMemo(() => {
+    if (!stats?.encryptionCounts) return [];
+    return Object.entries(stats.encryptionCounts).map(([k, v]) => ({
+      name: ENCRYPTION_REGISTRY.find(e => e.id === k)?.name ?? k,
+      count: v,
+    }));
+  }, [stats]);
+
   const tagData = useMemo(() => {
     const tc: Record<string, number> = {};
     for (const sig of signals) {
