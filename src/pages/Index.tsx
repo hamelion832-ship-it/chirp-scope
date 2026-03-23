@@ -236,25 +236,31 @@ const Index = () => {
             {isLoRa && (
               <>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                    <Zap className="w-3 h-3" /> SF
-                  </label>
+                  <FieldTooltip text={FIELD_TOOLTIPS.sf.text} recommended={FIELD_TOOLTIPS.sf.recommended}>
+                    <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> SF
+                    </label>
+                  </FieldTooltip>
                   <select value={sf} onChange={e => setSf(Number(e.target.value))}
                     className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
                     {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
                   </select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                    <Waves className="w-3 h-3" /> BW
-                  </label>
+                  <FieldTooltip text={FIELD_TOOLTIPS.bw.text} recommended={FIELD_TOOLTIPS.bw.recommended}>
+                    <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                      <Waves className="w-3 h-3" /> BW
+                    </label>
+                  </FieldTooltip>
                   <select value={bw} onChange={e => setBw(Number(e.target.value))}
                     className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
                     {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
                   </select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-mono text-muted-foreground">CR</label>
+                  <FieldTooltip text={FIELD_TOOLTIPS.cr.text} recommended={FIELD_TOOLTIPS.cr.recommended}>
+                    <label className="text-[10px] font-mono text-muted-foreground">CR</label>
+                  </FieldTooltip>
                   <select value={cr} onChange={e => setCr(Number(e.target.value))}
                     className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
                     {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
@@ -264,21 +270,27 @@ const Index = () => {
             )}
             {!isLoRa && ["2fsk", "4fsk"].includes(modType) && (
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-mono text-muted-foreground">Девиация Гц</label>
+                <FieldTooltip text={FIELD_TOOLTIPS.freqDeviation.text} recommended={FIELD_TOOLTIPS.freqDeviation.recommended}>
+                  <label className="text-[10px] font-mono text-muted-foreground">Девиация Гц</label>
+                </FieldTooltip>
                 <input type="number" value={freqDeviation} onChange={e => setFreqDeviation(Number(e.target.value))}
                   className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border w-24" />
               </div>
             )}
             {modType === "cdma" && (
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-mono text-muted-foreground">Chip Rate</label>
+                <FieldTooltip text={FIELD_TOOLTIPS.chipRate.text} recommended={FIELD_TOOLTIPS.chipRate.recommended}>
+                  <label className="text-[10px] font-mono text-muted-foreground">Chip Rate</label>
+                </FieldTooltip>
                 <input type="number" value={chipRate} onChange={e => setChipRate(Number(e.target.value))}
                   className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border w-24" />
               </div>
             )}
             {!isLoRa && (
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-mono text-muted-foreground">Symbol Rate</label>
+                <FieldTooltip text={FIELD_TOOLTIPS.symbolRate.text} recommended={FIELD_TOOLTIPS.symbolRate.recommended}>
+                  <label className="text-[10px] font-mono text-muted-foreground">Symbol Rate</label>
+                </FieldTooltip>
                 <select value={symbolRate} onChange={e => setSymbolRate(Number(e.target.value))}
                   className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border">
                   {[1000, 5000, 10000, 20000, 50000].map(v => <option key={v} value={v}>{v}</option>)}
@@ -287,25 +299,44 @@ const Index = () => {
             )}
 
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <Activity className="w-3 h-3" /> Символы: {numSymbols} / {maxSymbols}
-              </label>
+              <FieldTooltip text={FIELD_TOOLTIPS.numSymbols.text} recommended={FIELD_TOOLTIPS.numSymbols.recommended}>
+                <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                  <Activity className="w-3 h-3" /> Символы: {numSymbols} / {maxSymbols}
+                </label>
+              </FieldTooltip>
               <input type="range" min={1} max={maxSymbols} value={numSymbols}
                 onChange={e => setNumSymbols(Number(e.target.value))}
                 className="w-28 accent-signal-green" />
             </div>
 
-            <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-              <label className="text-[10px] font-mono text-muted-foreground">Сообщение</label>
+            <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
+              <FieldTooltip text={FIELD_TOOLTIPS.message.text} recommended={FIELD_TOOLTIPS.message.recommended}>
+                <label className="text-[10px] font-mono text-muted-foreground">Сообщение</label>
+              </FieldTooltip>
               <textarea value={text} onChange={e => setText(e.target.value)}
                 rows={2}
                 className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none resize-none" />
             </div>
 
+            {/* Encryption selector */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-                <Tag className="w-3 h-3" /> Теги
-              </label>
+              <FieldTooltip text={FIELD_TOOLTIPS.encryptionType.text} recommended={FIELD_TOOLTIPS.encryptionType.recommended}>
+                <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Шифрование
+                </label>
+              </FieldTooltip>
+              <select value={encType} onChange={e => { setEncType(e.target.value as EncryptionType); setEncConfig(c => ({ ...c, type: e.target.value as EncryptionType })); }}
+                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border">
+                {ENCRYPTION_REGISTRY.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <FieldTooltip text={FIELD_TOOLTIPS.tags.text} recommended={FIELD_TOOLTIPS.tags.recommended}>
+                <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                  <Tag className="w-3 h-3" /> Теги
+                </label>
+              </FieldTooltip>
               <input type="text" value={tags} onChange={e => setTags(e.target.value)}
                 placeholder="тест, demo"
                 className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none w-24" />
@@ -319,6 +350,7 @@ const Index = () => {
 
             <div className="text-[10px] font-mono text-muted-foreground leading-relaxed">
               <span className="text-signal-green">[{signal.symbols.slice(0, 8).join(", ")}{signal.symbols.length > 8 ? "…" : ""}]</span>
+              {encType !== "none" && <span className="ml-1 text-signal-amber">🔒 {ENCRYPTION_REGISTRY.find(e => e.id === encType)?.name}</span>}
             </div>
           </div>
 
