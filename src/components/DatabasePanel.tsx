@@ -32,13 +32,13 @@ export function DatabasePanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const [data, s] = await Promise.all([
-      fetchSignals(search || undefined, sfFilter, modFilter),
+      fetchSignals(search || undefined, sfFilter, modFilter, encFilter),
       getSignalStats(),
     ]);
     setSignals(data);
     setStats(s);
     setLoading(false);
-  }, [search, sfFilter, modFilter]);
+  }, [search, sfFilter, modFilter, encFilter]);
 
   useEffect(() => { load(); }, [load]);
 
