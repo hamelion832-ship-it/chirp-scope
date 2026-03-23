@@ -443,7 +443,7 @@ export function InverseModelPanel() {
           <div className="chart-panel" style={{ height: 170 }}>
             <h3 className="text-[10px] font-mono font-semibold text-foreground mb-1">
               Сигнал{noiseLevel > 0 ? ` (σ=${(noiseLevel * 100).toFixed(0)}%)` : " (чистый)"}
-              {dbSignalId && <span className="text-signal-amber ml-2">[из БД]</span>}
+              {dbSelectedIds.length > 0 && <span className="text-signal-amber ml-2">[из БД: {dbSelectedIds.length}]</span>}
             </h3>
             <ResponsiveContainer width="100%" height="85%">
               <LineChart data={signalPreview}>
