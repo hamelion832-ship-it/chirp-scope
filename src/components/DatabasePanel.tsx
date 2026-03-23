@@ -296,10 +296,25 @@ export function DatabasePanel() {
                     ) : (
                       <>
                         <td className="p-1.5 text-foreground max-w-[200px] truncate" title={sig.message_text}>{sig.message_text}</td>
-                        <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-cyan/10 text-signal-cyan rounded text-[9px] uppercase">{sig.mod_type || 'lora'}</span></td>
-                        <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-green/10 text-signal-green rounded text-[9px]">SF{sig.sf}</span></td>
-                        <td className="p-1.5 text-muted-foreground">{sig.bw / 1000}к</td>
-                        <td className="p-1.5 text-muted-foreground">{sig.cr}</td>
+                        <td className="p-1.5">
+                          {(() => {
+                            const mt = (sig.mod_type || 'lora') as ModulationType;
+                            const g = getProtocolGroup(mt);
+                            return <span className={`px-1 py-0.5 rounded text-[9px] uppercase bg-${g.color}/10 text-${g.color} border border-${g.color}/20`}>{mt}</span>;
+                          })()}
+                        </td>
+                        <td className="p-1.5">
+                          {(sig.mod_type || 'lora') === 'lora' 
+                            ? <span className="px-1 py-0.5 bg-signal-green/10 text-signal-green rounded text-[9px]">SF{sig.sf}</span>
+                            : <span className="text-muted-foreground/50">—</span>
+                          }
+                        </td>
+                        <td className="p-1.5 text-muted-foreground">
+                          {(sig.mod_type || 'lora') === 'lora' ? `${sig.bw / 1000}к` : '—'}
+                        </td>
+                        <td className="p-1.5 text-muted-foreground">
+                          {(sig.mod_type || 'lora') === 'lora' ? sig.cr : '—'}
+                        </td>
                         <td className="p-1.5 text-muted-foreground">{sig.n_symbols}</td>
                         <td className="p-1.5 text-muted-foreground">{(sig.duration * 1000).toFixed(1)}</td>
                         <td className="p-1.5">
