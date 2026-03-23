@@ -204,7 +204,7 @@ export function trainFormula(
   initialCoeffs?: Partial<FormulaCoefficients>,
   onEpoch?: (epoch: number, loss: number) => void
 ): TrainingResult {
-  const c: Record<string, number> = { ...(DEFAULT_COEFFS[formulaType] as Record<string, number>), ...initialCoeffs };
+  const c: Record<string, number> = { ...(DEFAULT_COEFFS[formulaType] as unknown as Record<string, number>), ...(initialCoeffs as Record<string, number>) };
   const lr = config.learningRate;
   const epochLosses: number[] = [];
   const n = samples.length;
