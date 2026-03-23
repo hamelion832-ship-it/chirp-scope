@@ -58,7 +58,7 @@ export function DatabasePanel() {
 
   const startEdit = (sig: StoredSignal) => {
     setEditingId(sig.id);
-    setEditData({ message_text: sig.message_text, tags: sig.tags, sf: sig.sf, bw: sig.bw, cr: sig.cr });
+    setEditData({ message_text: sig.message_text, tags: sig.tags, sf: sig.sf, bw: sig.bw, cr: sig.cr, mod_type: sig.mod_type });
   };
 
   const saveEdit = async () => {
