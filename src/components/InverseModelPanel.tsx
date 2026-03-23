@@ -33,6 +33,7 @@ import {
 import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
+import { ENCRYPTION_REGISTRY, type EncryptionType, getEncryptionStrength } from "@/lib/encryption-engine";
 import { toast } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
