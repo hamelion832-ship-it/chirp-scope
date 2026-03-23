@@ -188,8 +188,14 @@ export function assessSecurity(params: {
   }[];
   originalTextLength: number;
   numSymbols: number;
+  protocolClass?: string;
+  signalReconstructionMetrics?: {
+    mse: number;
+    snrDb: number;
+    correlationCoeff: number;
+  };
 }): SecurityAssessment {
-  const { sf, bw, noiseLevel, decoderResults, originalTextLength, numSymbols } = params;
+  const { sf, bw, noiseLevel, decoderResults, originalTextLength, numSymbols, protocolClass, signalReconstructionMetrics } = params;
 
   const factors: SecurityFactor[] = [];
 
@@ -199,15 +205,15 @@ export function assessSecurity(params: {
   factors.push({
     name: "Точность декодирования текста",
     score: bestCharAcc * 100,
-    weight: 0.30,
+    weight: 0.25,
     description: `Лучший декодер восстановил ${(bestCharAcc * 100).toFixed(1)}% символов текста`,
   });
 
   factors.push({
-    name: "Точность символов LoRa",
+    name: "Точность символов модуляции",
     score: bestSymAcc * 100,
-    weight: 0.25,
-    description: `Лучшая точность по символам модуляции: ${(bestSymAcc * 100).toFixed(1)}%`,
+    weight: 0.20,
+    description: `Лучшая точность по символам: ${(bestSymAcc * 100).toFixed(1)}%`,
   });
 
   // 2. Decoder confidence — high confidence = vulnerable
@@ -215,20 +221,34 @@ export function assessSecurity(params: {
   factors.push({
     name: "Уверенность декодера",
     score: bestConf * 100,
-    weight: 0.15,
+    weight: 0.10,
     description: `Средняя уверенность: ${(bestConf * 100).toFixed(1)}%`,
   });
 
-  // 3. SF protection — lower SF = less protection
-  const sfProtection = Math.max(0, 100 - ((sf - 7) / 5) * 60); // SF7=100, SF12=40
+  // 3. Signal reconstruction quality
+  const reconScore = signalReconstructionMetrics
+    ? Math.min(100, Math.max(0, signalReconstructionMetrics.correlationCoeff * 100))
+    : 0;
   factors.push({
-    name: "Защита SF (Spreading Factor)",
-    score: sfProtection,
-    weight: 0.10,
-    description: `SF=${sf}: ${sf <= 8 ? "низкая" : sf <= 10 ? "средняя" : "высокая"} сложность перебора (M=2^${sf}=${2 ** sf})`,
+    name: "Восстановление сигнала s'(t)",
+    score: reconScore,
+    weight: 0.15,
+    description: signalReconstructionMetrics
+      ? `Корреляция r=${signalReconstructionMetrics.correlationCoeff.toFixed(3)}, SNR=${signalReconstructionMetrics.snrDb.toFixed(1)} дБ`
+      : "Нет данных реконструкции",
   });
 
-  // 4. Noise resistance — low noise = vulnerable
+  // 4. Protocol-specific protection
+  const protName = protocolClass || "lora";
+  const protocolVulnerability = getProtocolVulnerability(protName, sf);
+  factors.push({
+    name: `Защита протокола (${protName.toUpperCase()})`,
+    score: protocolVulnerability,
+    weight: 0.10,
+    description: getProtocolDescription(protName, sf),
+  });
+
+  // 5. Noise resistance
   const noiseProtection = Math.max(0, 100 - noiseLevel * 200);
   factors.push({
     name: "Шумовая маскировка",
@@ -239,7 +259,7 @@ export function assessSecurity(params: {
       : `Низкий шум (σ=${(noiseLevel * 100).toFixed(0)}%) — сигнал легко перехватить`,
   });
 
-  // 5. Entropy of decoded text — repetitive = easier to crack
+  // 6. Consistency across decoders
   const consistencyAcrossDecoders = decoderResults.length > 1
     ? decoderResults.filter(r => r.charAccuracy > 0.5).length / decoderResults.length
     : 0;
@@ -253,6 +273,10 @@ export function assessSecurity(params: {
   // Compute weighted vulnerability score
   const vulnerabilityScore = factors.reduce((s, f) => s + f.score * f.weight, 0);
 
+  // Separate scores
+  const signalRecoveryScore = reconScore;
+  const textDecryptionScore = bestCharAcc * 100;
+
   const riskLevel: SecurityAssessment["riskLevel"] =
     vulnerabilityScore > 80 ? "critical" :
     vulnerabilityScore > 60 ? "high" :
@@ -260,19 +284,49 @@ export function assessSecurity(params: {
     vulnerabilityScore > 20 ? "low" : "minimal";
 
   const recommendations: string[] = [];
-  if (sf < 10) recommendations.push(`Увеличить SF до 10-12 для усложнения перебора (текущий M=${2 ** sf}, при SF12 M=4096)`);
+  if (protName === "lora" && sf < 10) recommendations.push(`Увеличить SF до 10-12 (текущий M=${2 ** sf}, SF12→M=4096)`);
   if (noiseLevel < 0.1) recommendations.push("Добавить искусственный шум или использовать сигнал с более высоким SNR-порогом");
   if (bestCharAcc > 0.5) recommendations.push("Применить шифрование данных перед модуляцией (AES-128/256)");
   if (bestSymAcc > 0.7) recommendations.push("Использовать frequency hopping (FHSS) для маскировки структуры символов");
   if (consistencyAcrossDecoders > 0.5) recommendations.push("Добавить interleaving и scrambling для снижения корреляций");
+  if (reconScore > 70) recommendations.push("Высокое качество реконструкции s'(t) — структура сигнала раскрыта, рассмотреть физический уровень защиты");
+  if (["bpsk", "qpsk"].includes(protName)) recommendations.push("PSK уязвим к фазовой атаке — рассмотреть DPSK или π/4-QPSK со скремблированием");
+  if (protName === "cdma") recommendations.push("DS-CDMA: увеличить длину кода Уолша и добавить PN-скремблер для усложнения деспрэдинга");
+  if (["2fsk", "4fsk"].includes(protName)) recommendations.push("FSK: увеличить девиацию частоты или использовать GFSK для снижения спектральных признаков");
   if (recommendations.length === 0) recommendations.push("Текущий уровень защиты достаточен для данных условий");
 
   const summary = `Уязвимость: ${vulnerabilityScore.toFixed(0)}/100 (${
     { critical: "КРИТИЧЕСКИЙ", high: "ВЫСОКИЙ", medium: "СРЕДНИЙ", low: "НИЗКИЙ", minimal: "МИНИМАЛЬНЫЙ" }[riskLevel]
-  }). ${bestCharAcc > 0.5
-    ? `Декодеры восстанавливают ${(bestCharAcc * 100).toFixed(0)}% текста — сигнал уязвим к перехвату.`
-    : `Декодеры не могут восстановить текст (${(bestCharAcc * 100).toFixed(0)}%) — сигнал защищён.`
+  }) [${protName.toUpperCase()}]. Сигнал: ${signalRecoveryScore.toFixed(0)}%, Текст: ${textDecryptionScore.toFixed(0)}%. ${bestCharAcc > 0.5
+    ? `Декодеры восстанавливают ${(bestCharAcc * 100).toFixed(0)}% текста.`
+    : `Текст не расшифрован (${(bestCharAcc * 100).toFixed(0)}%).`
   }`;
 
-  return { vulnerabilityScore, riskLevel, factors, summary, recommendations };
+  return { vulnerabilityScore, riskLevel, factors, summary, recommendations, signalRecoveryScore, textDecryptionScore, protocolClass: protName };
+}
+
+function getProtocolVulnerability(proto: string, sf: number): number {
+  switch (proto) {
+    case "lora": return Math.max(0, 100 - ((sf - 7) / 5) * 60);
+    case "bpsk": return 85; // simplest to decode
+    case "qpsk": return 75;
+    case "8psk": return 65;
+    case "2fsk": return 80;
+    case "4fsk": return 70;
+    case "cdma": return 50; // harder without code knowledge
+    default: return 70;
+  }
+}
+
+function getProtocolDescription(proto: string, sf: number): string {
+  switch (proto) {
+    case "lora": return `LoRa SF=${sf}: M=2^${sf}=${2**sf} — ${sf<=8?"низкая":sf<=10?"средняя":"высокая"} сложность`;
+    case "bpsk": return "BPSK: 2 фазовых состояния — простейший для перехвата";
+    case "qpsk": return "QPSK: 4 фазовых состояния — умеренная сложность";
+    case "8psk": return "8-PSK: 8 фазовых состояний — повышенная плотность";
+    case "2fsk": return "2-FSK: 2 частоты — легко детектируется спектрально";
+    case "4fsk": return "4-FSK: 4 частоты — умеренная спектральная сложность";
+    case "cdma": return "DS-CDMA: кодовое разделение — требует знание кода Уолша";
+    default: return `${proto}: неизвестный протокол`;
+  }
 }
