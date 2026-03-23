@@ -8,6 +8,7 @@ import { SignalList } from "@/components/SignalList";
 import { StatsPanel } from "@/components/StatsPanel";
 import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { UnifiedModelPanel } from "@/components/UnifiedModelPanel";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
