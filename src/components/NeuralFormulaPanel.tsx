@@ -428,6 +428,8 @@ export function NeuralFormulaPanel() {
           {signals.map(s => {
             const isSelected = selected.includes(s.id);
             const isActive = activeSignalId?.startsWith(s.id) ?? false;
+            const storedMod = (s.mod_type || "lora") as ModulationType;
+            const storedGroup = getProtocolGroup(storedMod);
             // Show results badges per protocol
             const signalResults = selectedProtocols
               .map(p => ({ proto: p, result: results.get(`${s.id}_${p}`) }))
@@ -439,15 +441,20 @@ export function NeuralFormulaPanel() {
                 }`}
                 onClick={() => { toggleSelect(s.id); if (signalResults.length > 0) setActiveSignalId(`${s.id}_${signalResults[0].proto}`); else setActiveSignalId(s.id); }}>
                 <input type="checkbox" checked={isSelected} readOnly className="accent-signal-cyan w-3 h-3" />
-                <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 25)}</span>
+                <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 22)}</span>
                 <span className="text-muted-foreground text-[9px]">SF{s.sf}</span>
+                {/* Stored protocol badge */}
+                <span className={`text-[8px] px-1 py-0.5 rounded border bg-${storedGroup.color}/10 text-${storedGroup.color} border-${storedGroup.color}/20`}
+                  title={`Сохранён как: ${storedMod}`}>
+                  {storedMod.toUpperCase().slice(0, 4)}
+                </span>
                 {/* Protocol result badges */}
                 {signalResults.map(({ proto, result: r }) => {
                   const g = getProtocolGroup(proto);
                   return (
                     <span key={proto} className={`text-[8px] px-1 py-0.5 rounded border bg-${g.color}/10 text-${g.color} border-${g.color}/20`}
                       title={`${proto}: R²=${r!.r2.toFixed(3)}`}>
-                      {proto.slice(0, 3).toUpperCase()}
+                      R²{r!.r2.toFixed(2)}
                     </span>
                   );
                 })}

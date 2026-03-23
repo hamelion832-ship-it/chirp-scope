@@ -125,7 +125,13 @@ export function InverseModelPanel() {
       setText(activeDbSignal.message_text);
       setSf(activeDbSignal.sf);
       setBw(activeDbSignal.bw / 1000);
-      const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(activeDbSignal.message_text).length, 1240) * 8) / activeDbSignal.sf));
+      if (activeDbSignal.mod_type) {
+        setModType(activeDbSignal.mod_type as ModulationType);
+      }
+      const storedModType = (activeDbSignal.mod_type || "lora") as ModulationType;
+      const storedMax = storedModType === "lora"
+        ? Math.max(1, Math.floor((Math.min(new TextEncoder().encode(activeDbSignal.message_text).length, 1240) * 8) / activeDbSignal.sf))
+        : getMaxSymbols(activeDbSignal.message_text, storedModType);
       setNumSymbols(Math.min(activeDbSignal.n_symbols, storedMax));
     }
   }, [activeDbSignal]);

@@ -419,7 +419,8 @@ export function UnifiedModelPanel() {
                 </div>
               </div>
               {signals.map(s => {
-                const g = getProtocolGroup(modType);
+                const storedMod = (s.mod_type || "lora") as ModulationType;
+                const g = getProtocolGroup(storedMod);
                 return (
                 <div key={s.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-0.5 ${
@@ -432,7 +433,7 @@ export function UnifiedModelPanel() {
                   <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 24)}</span>
                   <span className="text-muted-foreground text-[9px]">SF{s.sf}</span>
                   <span className={`text-[8px] px-1 py-0.5 rounded border bg-${g.color}/10 text-${g.color} border-${g.color}/20`}>
-                    {modType.toUpperCase().slice(0, 4)}
+                    {storedMod.toUpperCase().slice(0, 4)}
                   </span>
                 </div>
                 );
