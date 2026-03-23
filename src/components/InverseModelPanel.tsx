@@ -63,17 +63,21 @@ const RISK_ICONS: Record<string, React.ElementType> = {
 };
 
 export function InverseModelPanel() {
+  const [modType, setModType] = useState<ModulationType>("lora");
+  const isLoRa = modType === "lora";
   const [sf, setSf] = useState(7);
   const [bw, setBw] = useState(125);
   const [text, setText] = useState(SAMPLE_TEXTS[0]);
   const [numSymbols, setNumSymbols] = useState(20);
   const [noiseLevel, setNoiseLevel] = useState(0);
+  // Non-LoRa params
+  const [symbolRate, setSymbolRate] = useState(10000);
+  const [freqDeviation, setFreqDeviation] = useState(25000);
+  const [chipRate, setChipRate] = useState(100000);
 
   const maxSymbols = useMemo(() => {
-    const byteLen = new TextEncoder().encode(text).length;
-    const clampedBytes = Math.min(byteLen, 1240);
-    return Math.max(1, Math.floor((clampedBytes * 8) / sf));
-  }, [text, sf]);
+    return getMaxSymbols(text, modType, sf);
+  }, [text, modType, sf]);
 
   useEffect(() => {
     setNumSymbols(prev => Math.min(prev, maxSymbols));
