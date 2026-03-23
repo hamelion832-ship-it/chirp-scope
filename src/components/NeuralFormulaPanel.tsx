@@ -55,6 +55,7 @@ export function NeuralFormulaPanel() {
   const [aiSuggestion, setAiSuggestion] = useState<AISuggestion | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [unifiedMode, setUnifiedMode] = useState(false);
+  const [modType, setModType] = useState<ModulationType>("lora");
 
   useEffect(() => {
     fetchSignals().then(setSignals);
