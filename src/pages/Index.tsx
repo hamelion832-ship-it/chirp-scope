@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback } from "react";
-import { Radio, Activity, Waves, Zap, Save, Tag } from "lucide-react";
+import { Radio, Activity, Waves, Zap, Save, Tag, Brain } from "lucide-react";
 import { ChartPanel } from "@/components/ChartPanel";
 import { SpectrogramPanel } from "@/components/SpectrogramPanel";
 import { IQPanel } from "@/components/IQPanel";
 import { SymbolsChart } from "@/components/SymbolsChart";
 import { SignalList } from "@/components/SignalList";
 import { StatsPanel } from "@/components/StatsPanel";
+import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
@@ -134,113 +136,126 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Controls */}
-      <div className="chart-panel mb-3 flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-            <Zap className="w-3 h-3" /> SF
-          </label>
-          <select value={sf} onChange={e => setSf(Number(e.target.value))}
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-            {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
-          </select>
-        </div>
+      <Tabs defaultValue="dashboard" className="space-y-3">
+        <TabsList className="bg-secondary border border-border">
+          <TabsTrigger value="dashboard" className="font-mono text-xs data-[state=active]:text-signal-green">
+            <Radio className="w-3 h-3 mr-1.5" /> Дашборд
+          </TabsTrigger>
+          <TabsTrigger value="neural" className="font-mono text-xs data-[state=active]:text-signal-cyan">
+            <Brain className="w-3 h-3 mr-1.5" /> Нейронная формула
+          </TabsTrigger>
+        </TabsList>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-            <Waves className="w-3 h-3" /> BW
-          </label>
-          <select value={bw} onChange={e => setBw(Number(e.target.value))}
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-            {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
-          </select>
-        </div>
+        <TabsContent value="dashboard">
+          {/* Controls */}
+          <div className="chart-panel mb-3 flex flex-wrap gap-3 items-end">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                <Zap className="w-3 h-3" /> SF
+              </label>
+              <select value={sf} onChange={e => setSf(Number(e.target.value))}
+                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                {[7, 8, 9, 10, 11, 12].map(v => <option key={v} value={v}>SF {v}</option>)}
+              </select>
+            </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted-foreground">CR</label>
-          <select value={cr} onChange={e => setCr(Number(e.target.value))}
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
-            {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
-          </select>
-        </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                <Waves className="w-3 h-3" /> BW
+              </label>
+              <select value={bw} onChange={e => setBw(Number(e.target.value))}
+                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                {[125, 250, 500].map(v => <option key={v} value={v}>{v}кГц</option>)}
+              </select>
+            </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-            <Activity className="w-3 h-3" /> Символы: {numSymbols} / {maxSymbols}
-          </label>
-          <input type="range" min={1} max={maxSymbols} value={numSymbols}
-            onChange={e => setNumSymbols(Number(e.target.value))}
-            className="w-28 accent-signal-green" />
-        </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted-foreground">CR</label>
+              <select value={cr} onChange={e => setCr(Number(e.target.value))}
+                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none">
+                {[1, 2, 3, 4].map(v => <option key={v} value={v}>4/{4 + v}</option>)}
+              </select>
+            </div>
 
-        <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-          <label className="text-[10px] font-mono text-muted-foreground">Сообщение</label>
-          <textarea value={text} onChange={e => setText(e.target.value)}
-            rows={2}
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none resize-none" />
-        </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                <Activity className="w-3 h-3" /> Символы: {numSymbols} / {maxSymbols}
+              </label>
+              <input type="range" min={1} max={maxSymbols} value={numSymbols}
+                onChange={e => setNumSymbols(Number(e.target.value))}
+                className="w-28 accent-signal-green" />
+            </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
-            <Tag className="w-3 h-3" /> Теги
-          </label>
-          <input type="text" value={tags} onChange={e => setTags(e.target.value)}
-            placeholder="тест, demo"
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none w-24" />
-        </div>
+            <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+              <label className="text-[10px] font-mono text-muted-foreground">Сообщение</label>
+              <textarea value={text} onChange={e => setText(e.target.value)}
+                rows={2}
+                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none resize-none" />
+            </div>
 
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1 bg-signal-green/20 hover:bg-signal-green/30 text-signal-green rounded px-3 py-1.5 text-xs font-mono border border-signal-green/30 transition-colors disabled:opacity-50">
-          <Save className="w-3 h-3" />
-          {saving ? "..." : "Сохранить"}
-        </button>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-muted-foreground flex items-center gap-1">
+                <Tag className="w-3 h-3" /> Теги
+              </label>
+              <input type="text" value={tags} onChange={e => setTags(e.target.value)}
+                placeholder="тест, demo"
+                className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs font-mono border border-border focus:ring-1 focus:ring-ring outline-none w-24" />
+            </div>
 
-        <div className="text-[10px] font-mono text-muted-foreground leading-relaxed">
-          <span className="text-signal-green">[{signal.symbols.slice(0, 8).join(", ")}{signal.symbols.length > 8 ? "…" : ""}]</span>
-        </div>
-      </div>
+            <button onClick={handleSave} disabled={saving}
+              className="flex items-center gap-1 bg-signal-green/20 hover:bg-signal-green/30 text-signal-green rounded px-3 py-1.5 text-xs font-mono border border-signal-green/30 transition-colors disabled:opacity-50">
+              <Save className="w-3 h-3" />
+              {saving ? "..." : "Сохранить"}
+            </button>
 
-      {/* Main Grid: Charts + DB panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-        {/* Charts 3x3 grid */}
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3" style={{ gridAutoRows: "240px" }}>
-          <ChartPanel title="Временная область (Re)" data={timeDomainData} xLabel="мс" yLabel="Амп." color="hsl(220 80% 60%)" />
-          <ChartPanel title="Огибающая сигнала" data={envelopeData} xLabel="мс" yLabel="Амп." color="hsl(0 80% 58%)" />
-          <ChartPanel title="Спектр baseband" data={spectrumData} xLabel="кГц" yLabel="дБ" color="hsl(142 70% 50%)" />
-          <ChartPanel title={`Спектр RF (fc=915МГц)`} data={rfSpectrumData} xLabel="кГц" yLabel="дБ" color="hsl(300 70% 60%)" />
-          <SpectrogramPanel data={spectrogram} bw={bw * 1000} />
-          <IQPanel points={iqPoints} trajectory={iqTrajectory} />
-          <SymbolsChart symbols={signal.symbols} />
-          {/* Signal info panel */}
-          <div className="chart-panel flex flex-col h-full">
-            <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2" style={{ textShadow: "0 0 10px hsl(40 95% 55% / 0.4)" }}>
-              Параметры сигнала
-            </h3>
-            <div className="flex-1 space-y-1.5 text-[11px] font-mono text-muted-foreground">
-              <div className="flex justify-between"><span>SF:</span><span className="text-foreground">{sf}</span></div>
-              <div className="flex justify-between"><span>BW:</span><span className="text-foreground">{bw} кГц</span></div>
-              <div className="flex justify-between"><span>CR:</span><span className="text-foreground">4/{4 + cr}</span></div>
-              <div className="flex justify-between"><span>fc:</span><span className="text-foreground">915 МГц</span></div>
-              <div className="flex justify-between"><span>T<sub>sym</sub>:</span><span className="text-foreground">{tSymbol.toFixed(2)} мс</span></div>
-              <div className="flex justify-between"><span>Длительность:</span><span className="text-foreground">{(duration * 1000).toFixed(2)} мс</span></div>
-              <div className="flex justify-between"><span>Символов:</span><span className="text-foreground">{signal.symbols.length}</span></div>
-              <div className="flex justify-between"><span>M (2^SF):</span><span className="text-foreground">{2 ** sf}</span></div>
-              <div className="flex justify-between"><span>Длина текста:</span><span className="text-foreground">{text.length} симв.</span></div>
-              <div className="border-t border-border pt-1.5 mt-2">
-                <p className="text-[10px] text-muted-foreground leading-relaxed break-all">
-                  {text.slice(0, 150)}{text.length > 150 ? "..." : ""}
-                </p>
-              </div>
+            <div className="text-[10px] font-mono text-muted-foreground leading-relaxed">
+              <span className="text-signal-green">[{signal.symbols.slice(0, 8).join(", ")}{signal.symbols.length > 8 ? "…" : ""}]</span>
             </div>
           </div>
-          <StatsPanel refreshKey={refreshKey} />
-        </div>
 
-        {/* Right: DB panel */}
-        <div className="lg:col-span-1" style={{ minHeight: "500px" }}>
-          <SignalList onSelect={handleSelectFromDB} refreshKey={refreshKey} />
-        </div>
-      </div>
+          {/* Main Grid: Charts + DB panel */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3" style={{ gridAutoRows: "240px" }}>
+              <ChartPanel title="Временная область (Re)" data={timeDomainData} xLabel="мс" yLabel="Амп." color="hsl(220 80% 60%)" />
+              <ChartPanel title="Огибающая сигнала" data={envelopeData} xLabel="мс" yLabel="Амп." color="hsl(0 80% 58%)" />
+              <ChartPanel title="Спектр baseband" data={spectrumData} xLabel="кГц" yLabel="дБ" color="hsl(142 70% 50%)" />
+              <ChartPanel title={`Спектр RF (fc=915МГц)`} data={rfSpectrumData} xLabel="кГц" yLabel="дБ" color="hsl(300 70% 60%)" />
+              <SpectrogramPanel data={spectrogram} bw={bw * 1000} />
+              <IQPanel points={iqPoints} trajectory={iqTrajectory} />
+              <SymbolsChart symbols={signal.symbols} />
+              <div className="chart-panel flex flex-col h-full">
+                <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2" style={{ textShadow: "0 0 10px hsl(40 95% 55% / 0.4)" }}>
+                  Параметры сигнала
+                </h3>
+                <div className="flex-1 space-y-1.5 text-[11px] font-mono text-muted-foreground">
+                  <div className="flex justify-between"><span>SF:</span><span className="text-foreground">{sf}</span></div>
+                  <div className="flex justify-between"><span>BW:</span><span className="text-foreground">{bw} кГц</span></div>
+                  <div className="flex justify-between"><span>CR:</span><span className="text-foreground">4/{4 + cr}</span></div>
+                  <div className="flex justify-between"><span>fc:</span><span className="text-foreground">915 МГц</span></div>
+                  <div className="flex justify-between"><span>T<sub>sym</sub>:</span><span className="text-foreground">{tSymbol.toFixed(2)} мс</span></div>
+                  <div className="flex justify-between"><span>Длительность:</span><span className="text-foreground">{(duration * 1000).toFixed(2)} мс</span></div>
+                  <div className="flex justify-between"><span>Символов:</span><span className="text-foreground">{signal.symbols.length}</span></div>
+                  <div className="flex justify-between"><span>M (2^SF):</span><span className="text-foreground">{2 ** sf}</span></div>
+                  <div className="flex justify-between"><span>Длина текста:</span><span className="text-foreground">{text.length} симв.</span></div>
+                  <div className="border-t border-border pt-1.5 mt-2">
+                    <p className="text-[10px] text-muted-foreground leading-relaxed break-all">
+                      {text.slice(0, 150)}{text.length > 150 ? "..." : ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <StatsPanel refreshKey={refreshKey} />
+            </div>
+            <div className="lg:col-span-1" style={{ minHeight: "500px" }}>
+              <SignalList onSelect={handleSelectFromDB} refreshKey={refreshKey} />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="neural">
+          <NeuralFormulaPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
