@@ -261,10 +261,29 @@ export function InverseModelPanel() {
           <span className="text-sm font-mono font-semibold text-foreground">
             Обратное преобразование: s(t) → текст
           </span>
-          <button onClick={() => setShowDB(!showDB)}
-            className="ml-auto flex items-center gap-1 text-[10px] font-mono text-signal-amber hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:border-signal-amber/30">
-            <Database className="w-3 h-3" /> {showDB ? "Скрыть БД" : "Из базы данных"}
-          </button>
+          <div className="ml-auto flex gap-1">
+            {([
+              ["manual", "Ручной ввод", "signal-green"],
+              ["db", "Из БД", "signal-amber"],
+              ["unified", "Единая модель", "signal-magenta"],
+            ] as [SignalSourceMode, string, string][]).map(([mode, label, color]) => (
+              <button key={mode}
+                onClick={() => {
+                  setSignalSourceMode(mode);
+                  if (mode === "db") setShowDB(true);
+                  else setShowDB(false);
+                }}
+                className={`flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border transition-colors ${
+                  signalSourceMode === mode
+                    ? `bg-${color}/20 text-${color} border-${color}/40`
+                    : "bg-secondary text-muted-foreground border-border"
+                }`}>
+                {mode === "db" && <Database className="w-3 h-3" />}
+                {mode === "unified" && <Radar className="w-3 h-3" />}
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         {/* Decoder type selector */}
         <div className="flex flex-wrap gap-1.5">
