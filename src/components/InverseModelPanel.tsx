@@ -33,6 +33,7 @@ import {
 import { ProtocolSelector } from "@/components/ProtocolSelector";
 import { SignalDBBrowser } from "@/components/SignalDBBrowser";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
+import { ENCRYPTION_REGISTRY, type EncryptionType, getEncryptionStrength } from "@/lib/encryption-engine";
 import { toast } from "sonner";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -84,6 +85,7 @@ export function InverseModelPanel() {
   const [symbolRate, setSymbolRate] = useState(10000);
   const [freqDeviation, setFreqDeviation] = useState(25000);
   const [chipRate, setChipRate] = useState(100000);
+  const [encType, setEncType] = useState<EncryptionType>("none");
 
   const maxSymbols = useMemo(() => getMaxSymbols(text, modType, sf), [text, modType, sf]);
   useEffect(() => { setNumSymbols(prev => Math.min(prev, maxSymbols)); }, [maxSymbols]);
@@ -133,6 +135,10 @@ export function InverseModelPanel() {
         ? Math.max(1, Math.floor((Math.min(new TextEncoder().encode(activeDbSignal.message_text).length, 1240) * 8) / activeDbSignal.sf))
         : getMaxSymbols(activeDbSignal.message_text, storedModType);
       setNumSymbols(Math.min(activeDbSignal.n_symbols, storedMax));
+      if (activeDbSignal.encryption_type) setEncType(activeDbSignal.encryption_type as EncryptionType);
+      if (activeDbSignal.symbol_rate) setSymbolRate(activeDbSignal.symbol_rate);
+      if (activeDbSignal.freq_deviation) setFreqDeviation(activeDbSignal.freq_deviation);
+      if (activeDbSignal.chip_rate) setChipRate(activeDbSignal.chip_rate);
     }
   }, [activeDbSignal]);
 
@@ -238,12 +244,14 @@ export function InverseModelPanel() {
       originalTextLength: text.length,
       numSymbols,
       protocolClass: autoDetect && classification ? classification.detectedType : modType,
+      encryptionType: encType,
+      encryptionStrength: getEncryptionStrength(encType),
       signalReconstructionMetrics: reconstruction ? {
         mse: reconstruction.mse, snrDb: reconstruction.snrDb, correlationCoeff: reconstruction.correlationCoeff,
       } : undefined,
     });
     setSecurityReport(report);
-  }, [textComparison, mlpResult, classicResults, urhResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols, modType, autoDetect, classification, reconstruction]);
+  }, [textComparison, mlpResult, classicResults, urhResults, signal.symbols, sf, bw, noiseLevel, text.length, numSymbols, modType, autoDetect, classification, reconstruction, encType]);
 
   useEffect(() => {
     if (Object.keys(textComparison).length > 0) runSecurityAssessment();

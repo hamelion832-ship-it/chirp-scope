@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Database, Search, RefreshCw, Trash2, Edit3, Save, X, BarChart3, PieChart, TrendingUp, FileText, AlertTriangle, Check } from "lucide-react";
+import { Database, Search, RefreshCw, Trash2, Edit3, Save, X, BarChart3, PieChart, TrendingUp, FileText, AlertTriangle, Check, Lock } from "lucide-react";
 import { fetchSignals, deleteSignal, getSignalStats, type StoredSignal } from "@/lib/signal-db";
 import { getProtocolGroup, PROTOCOL_CHART_COLORS } from "@/lib/protocol-classify";
 import type { ModulationType } from "@/lib/modulation-engine";
+import { ENCRYPTION_REGISTRY } from "@/lib/encryption-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -20,6 +21,7 @@ export function DatabasePanel() {
   const [search, setSearch] = useState("");
   const [sfFilter, setSfFilter] = useState<number | undefined>();
   const [modFilter, setModFilter] = useState<string | undefined>();
+  const [encFilter, setEncFilter] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<StoredSignal>>({});
@@ -30,13 +32,13 @@ export function DatabasePanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const [data, s] = await Promise.all([
-      fetchSignals(search || undefined, sfFilter, modFilter),
+      fetchSignals(search || undefined, sfFilter, modFilter, encFilter),
       getSignalStats(),
     ]);
     setSignals(data);
     setStats(s);
     setLoading(false);
-  }, [search, sfFilter, modFilter]);
+  }, [search, sfFilter, modFilter, encFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -108,6 +110,14 @@ export function DatabasePanel() {
       name: k.toUpperCase(),
       count: v,
       color: PROTOCOL_CHART_COLORS[k] ?? "hsl(215 15% 55%)",
+    }));
+  }, [stats]);
+
+  const encTypeData = useMemo(() => {
+    if (!stats?.encryptionCounts) return [];
+    return Object.entries(stats.encryptionCounts).map(([k, v]) => ({
+      name: ENCRYPTION_REGISTRY.find(e => e.id === k)?.name ?? k,
+      count: v,
     }));
   }, [stats]);
 
@@ -192,6 +202,12 @@ export function DatabasePanel() {
           ))}
         </select>
 
+        <select value={encFilter ?? ""} onChange={e => setEncFilter(e.target.value || undefined)}
+          className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-[10px] font-mono border border-border">
+          <option value="">Все шифр.</option>
+          {ENCRYPTION_REGISTRY.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+        </select>
+
         <button onClick={load} className="p-1.5 rounded hover:bg-secondary transition-colors border border-border">
           <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -228,6 +244,7 @@ export function DatabasePanel() {
                   <th className="p-1.5 text-left text-muted-foreground font-medium">SF</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">BW</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">CR</th>
+                  <th className="p-1.5 text-left text-muted-foreground font-medium">Шифр.</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Симв.</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Длит. мс</th>
                   <th className="p-1.5 text-left text-muted-foreground font-medium">Теги</th>
@@ -237,7 +254,7 @@ export function DatabasePanel() {
               </thead>
               <tbody>
                 {signals.length === 0 && (
-                  <tr><td colSpan={10} className="text-center text-muted-foreground py-8">
+                  <tr><td colSpan={12} className="text-center text-muted-foreground py-8">
                     {loading ? "Загрузка..." : "Нет данных"}
                   </td></tr>
                 )}
@@ -279,6 +296,7 @@ export function DatabasePanel() {
                             {[1, 2, 3, 4].map(v => <option key={v} value={v}>{v}</option>)}
                           </select>
                         </td>
+                        <td className="p-1.5 text-muted-foreground text-[9px]">{sig.encryption_type ?? "none"}</td>
                         <td className="p-1.5 text-muted-foreground">{sig.n_symbols}</td>
                         <td className="p-1.5 text-muted-foreground">{(sig.duration * 1000).toFixed(1)}</td>
                         <td className="p-1.5">
@@ -314,6 +332,11 @@ export function DatabasePanel() {
                         </td>
                         <td className="p-1.5 text-muted-foreground">
                           {(sig.mod_type || 'lora') === 'lora' ? sig.cr : '—'}
+                        </td>
+                        <td className="p-1.5">
+                          {sig.encryption_type && sig.encryption_type !== "none" ? (
+                            <span className="px-1 py-0.5 bg-signal-amber/10 text-signal-amber rounded text-[8px] border border-signal-amber/20">🔒{sig.encryption_type}</span>
+                          ) : <span className="text-muted-foreground/50 text-[9px]">нет</span>}
                         </td>
                         <td className="p-1.5 text-muted-foreground">{sig.n_symbols}</td>
                         <td className="p-1.5 text-muted-foreground">{(sig.duration * 1000).toFixed(1)}</td>
@@ -355,7 +378,7 @@ export function DatabasePanel() {
                 { label: "Всего сигналов", value: stats?.total ?? 0, color: "text-signal-green" },
                 { label: "Ср. длина текста", value: stats?.avgLength?.toFixed(0) ?? "—", color: "text-signal-cyan" },
                 { label: "Протоколов", value: stats?.modTypeCounts ? Object.keys(stats.modTypeCounts).length : 0, color: "text-signal-amber" },
-                { label: "Уникальных SF", value: stats?.sfCounts ? Object.keys(stats.sfCounts).length : 0, color: "text-signal-magenta" },
+                { label: "Типов шифр.", value: stats?.encryptionCounts ? Object.keys(stats.encryptionCounts).length : 0, color: "text-signal-magenta" },
               ].map((item, i) => (
                 <div key={i} className="bg-secondary rounded-lg p-2.5 border border-border">
                   <p className="text-[9px] font-mono text-muted-foreground">{item.label}</p>
@@ -409,7 +432,20 @@ export function DatabasePanel() {
             </ResponsiveContainer>
           </div>
 
-          {/* Tags pie chart */}
+          {/* Encryption distribution */}
+          <div className="chart-panel">
+            <h4 className="text-xs font-mono font-semibold text-foreground mb-2 flex items-center gap-1"><Lock className="w-3.5 h-3.5 text-signal-amber" /> Шифрование</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={encTypeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                <XAxis dataKey="name" tick={chartLabelStyle} />
+                <YAxis tick={chartLabelStyle} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 10, fontFamily: "monospace", background: "hsl(0 0% 98%)", border: "1px solid hsl(220 13% 90%)" }} />
+                <Bar dataKey="count" fill="hsl(35 92% 48%)" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
           <div className="chart-panel">
             <h4 className="text-xs font-mono font-semibold text-foreground mb-2">Теги</h4>
             <ResponsiveContainer width="100%" height={180}>
