@@ -1,0 +1,1 @@
+CREATE POLICY "Anyone can update signals" ON public.signals FOR UPDATE TO public USING (true) WITH CHECK (true);
