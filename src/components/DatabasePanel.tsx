@@ -378,7 +378,7 @@ export function DatabasePanel() {
                 { label: "Всего сигналов", value: stats?.total ?? 0, color: "text-signal-green" },
                 { label: "Ср. длина текста", value: stats?.avgLength?.toFixed(0) ?? "—", color: "text-signal-cyan" },
                 { label: "Протоколов", value: stats?.modTypeCounts ? Object.keys(stats.modTypeCounts).length : 0, color: "text-signal-amber" },
-                { label: "Уникальных SF", value: stats?.sfCounts ? Object.keys(stats.sfCounts).length : 0, color: "text-signal-magenta" },
+                { label: "Типов шифр.", value: stats?.encryptionCounts ? Object.keys(stats.encryptionCounts).length : 0, color: "text-signal-magenta" },
               ].map((item, i) => (
                 <div key={i} className="bg-secondary rounded-lg p-2.5 border border-border">
                   <p className="text-[9px] font-mono text-muted-foreground">{item.label}</p>
