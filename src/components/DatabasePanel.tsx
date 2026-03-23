@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Database, Search, RefreshCw, Trash2, Edit3, Save, X, BarChart3, PieChart, TrendingUp, FileText, AlertTriangle, Check } from "lucide-react";
+import { Database, Search, RefreshCw, Trash2, Edit3, Save, X, BarChart3, PieChart, TrendingUp, FileText, AlertTriangle, Check, Lock } from "lucide-react";
 import { fetchSignals, deleteSignal, getSignalStats, type StoredSignal } from "@/lib/signal-db";
 import { getProtocolGroup, PROTOCOL_CHART_COLORS } from "@/lib/protocol-classify";
 import type { ModulationType } from "@/lib/modulation-engine";
+import { ENCRYPTION_REGISTRY } from "@/lib/encryption-engine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
