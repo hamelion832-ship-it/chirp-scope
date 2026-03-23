@@ -82,7 +82,8 @@ export function InverseModelPanel() {
     setText(stored.message_text);
     setSf(stored.sf);
     setBw(stored.bw / 1000);
-    setNumSymbols(Math.min(stored.n_symbols, 30));
+    const storedMax = Math.max(1, Math.floor((Math.min(new TextEncoder().encode(stored.message_text).length, 1240) * 8) / stored.sf));
+    setNumSymbols(Math.min(stored.n_symbols, storedMax));
     setDbSignalId(stored.id);
     // Clear previous results
     setMlpTrain(null);
