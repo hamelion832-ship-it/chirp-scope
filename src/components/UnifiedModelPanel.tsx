@@ -84,7 +84,9 @@ export function UnifiedModelPanel() {
   // Build samples from DB signal
   const buildDbSamples = useCallback((stored: StoredSignal) => {
     const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
-    const sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, 20));
+    const byteLen = new TextEncoder().encode(stored.message_text).length;
+    const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
+    const sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
     const maxPts = Math.min(sig.real.length, 500);
     const step = Math.max(1, Math.floor(sig.real.length / maxPts));
     const samples: { t: number; y: number }[] = [];

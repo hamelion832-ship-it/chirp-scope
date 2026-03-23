@@ -271,10 +271,10 @@ export function InverseModelPanel() {
                   </div>
                 ))}
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-muted-foreground">Символов</span>
-                  <input type="range" min={4} max={30} value={numSymbols}
+                  <span className="text-muted-foreground">Символов: {numSymbols}/{maxSymbols}</span>
+                  <input type="range" min={1} max={maxSymbols} value={Math.min(numSymbols, maxSymbols)}
                     onChange={e => setNumSymbols(Number(e.target.value))} className="w-16 accent-signal-green" />
-                  <span className="text-foreground w-6 text-right">{numSymbols}</span>
+                  <span className="text-foreground w-8 text-right">{numSymbols}</span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-mono">
                   <span className="text-muted-foreground">Шум σ</span>
