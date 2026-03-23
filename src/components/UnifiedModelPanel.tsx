@@ -3,6 +3,7 @@ import {
   Brain, Play, Loader2, CheckCircle2, AlertTriangle, Sparkles, Zap,
   Settings2, BarChart3, Radio, Waves, Activity, Sliders,
 } from "lucide-react";
+import { getProtocolGroup, PROTOCOL_CHART_COLORS } from "@/lib/protocol-classify";
 import { fetchSignals, type StoredSignal } from "@/lib/signal-db";
 import { generateLoRaSignal } from "@/lib/lora-signal";
 import {
@@ -417,7 +418,9 @@ export function UnifiedModelPanel() {
                     className="text-[9px] font-mono text-muted-foreground hover:text-foreground underline">Сброс</button>
                 </div>
               </div>
-              {signals.map(s => (
+              {signals.map(s => {
+                const g = getProtocolGroup(modType);
+                return (
                 <div key={s.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-0.5 ${
                     selectedDbIds.includes(s.id) ? "bg-signal-cyan/20 border border-signal-cyan/30" : "hover:bg-secondary"
@@ -426,10 +429,14 @@ export function UnifiedModelPanel() {
                     prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]
                   )}>
                   <input type="checkbox" checked={selectedDbIds.includes(s.id)} readOnly className="accent-signal-cyan w-3 h-3" />
-                  <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 28)}</span>
-                  <span className="text-muted-foreground">SF{s.sf}</span>
+                  <span className="flex-1 truncate text-foreground">{s.message_text.slice(0, 24)}</span>
+                  <span className="text-muted-foreground text-[9px]">SF{s.sf}</span>
+                  <span className={`text-[8px] px-1 py-0.5 rounded border bg-${g.color}/10 text-${g.color} border-${g.color}/20`}>
+                    {modType.toUpperCase().slice(0, 4)}
+                  </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
