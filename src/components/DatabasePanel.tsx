@@ -269,6 +269,7 @@ export function DatabasePanel() {
                     ) : (
                       <>
                         <td className="p-1.5 text-foreground max-w-[200px] truncate" title={sig.message_text}>{sig.message_text}</td>
+                        <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-cyan/10 text-signal-cyan rounded text-[9px] uppercase">{sig.mod_type || 'lora'}</span></td>
                         <td className="p-1.5"><span className="px-1 py-0.5 bg-signal-green/10 text-signal-green rounded text-[9px]">SF{sig.sf}</span></td>
                         <td className="p-1.5 text-muted-foreground">{sig.bw / 1000}к</td>
                         <td className="p-1.5 text-muted-foreground">{sig.cr}</td>
