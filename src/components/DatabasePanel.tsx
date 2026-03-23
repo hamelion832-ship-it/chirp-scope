@@ -102,6 +102,15 @@ export function DatabasePanel() {
     return Object.entries(stats.bwCounts).map(([k, v]) => ({ name: `${Number(k) / 1000}к`, count: v }));
   }, [stats]);
 
+  const modTypeData = useMemo(() => {
+    if (!stats?.modTypeCounts) return [];
+    return Object.entries(stats.modTypeCounts).map(([k, v]) => ({
+      name: k.toUpperCase(),
+      count: v,
+      color: PROTOCOL_CHART_COLORS[k] ?? "hsl(215 15% 55%)",
+    }));
+  }, [stats]);
+
   const tagData = useMemo(() => {
     const tc: Record<string, number> = {};
     for (const sig of signals) {
