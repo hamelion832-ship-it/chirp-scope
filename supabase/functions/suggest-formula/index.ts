@@ -69,7 +69,7 @@ Based on these characteristics, which formula type would best approximate this s
               properties: {
                 formulaType: {
                   type: "string",
-                  enum: ["chirp", "damped_sine", "gaussian", "harmonics", "polynomial"],
+                  enum: ["chirp", "damped_sine", "gaussian", "harmonics", "polynomial", "lorentzian", "fm", "exp_rise"],
                 },
                 confidence: {
                   type: "number",
