@@ -66,10 +66,21 @@ export function NeuralFormulaPanel() {
   }, []);
 
   const buildSamples = useCallback((stored: StoredSignal): SignalSample[] => {
-    const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
     const byteLen = new TextEncoder().encode(stored.message_text).length;
-    const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
-    const sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
+    let sig: { time: number[]; real: number[] };
+    if (modType === "lora") {
+      const params = { sf: stored.sf, bw: stored.bw, fc: stored.fc, sampleRate: 500e3 };
+      const maxSym = Math.max(1, Math.floor((Math.min(byteLen, 1240) * 8) / stored.sf));
+      sig = generateLoRaSignal(params, stored.message_text, Math.min(stored.n_symbols, maxSym));
+    } else {
+      const meta = MODULATION_REGISTRY.find(m => m.id === modType)!;
+      const maxSym = getMaxSymbols(stored.message_text, modType);
+      const modParams: ModulationParams = {
+        type: modType, sampleRate: modType === "cdma" ? 500000 : 200000,
+        symbolRate: 10000, fc: 915e6, freqDeviation: 25000, chipRate: 100000, spreadingCode: 0,
+      };
+      sig = generateModulatedSignal(modParams, stored.message_text, Math.min(stored.n_symbols, maxSym));
+    }
     const maxPts = Math.min(sig.real.length, 400);
     const step = Math.max(1, Math.floor(sig.real.length / maxPts));
     const samples: SignalSample[] = [];
@@ -77,7 +88,7 @@ export function NeuralFormulaPanel() {
       samples.push({ t: sig.time[i] * 1000, y: sig.real[i] });
     }
     return samples;
-  }, []);
+  }, [modType]);
 
   /** Compute signal stats for AI suggestion */
   const computeSignalStats = useCallback((stored: StoredSignal, samples: SignalSample[]) => {
