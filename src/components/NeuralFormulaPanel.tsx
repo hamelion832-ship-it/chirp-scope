@@ -295,6 +295,14 @@ export function NeuralFormulaPanel() {
             className="text-[10px] font-mono text-muted-foreground hover:text-foreground underline">Выбрать все</button>
           <button onClick={() => setSelected([])}
             className="text-[10px] font-mono text-muted-foreground hover:text-foreground underline">Сбросить</button>
+          <button onClick={() => setUnifiedMode(!unifiedMode)}
+            className={`text-[10px] font-mono px-2.5 py-1 rounded border transition-colors flex items-center gap-1 ${
+              unifiedMode
+                ? 'bg-signal-magenta/20 text-signal-magenta border-signal-magenta/40'
+                : 'bg-secondary text-muted-foreground border-border hover:text-foreground'
+            }`}>
+            <BarChart3 className="w-3 h-3" /> Единая модель
+          </button>
         </div>
 
         {/* Formula type selector */}

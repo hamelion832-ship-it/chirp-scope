@@ -380,14 +380,22 @@ export function UnifiedModelPanel() {
             </div>
           ) : (
             <div className="chart-panel" style={{ maxHeight: 400, overflowY: "auto" }}>
-              <h3 className="text-xs font-mono font-semibold text-signal-amber mb-2 flex items-center gap-2">
-                Сигналы из БД
-                {selectedDbIds.length > 0 && (
-                  <span className="text-[9px] text-signal-green bg-signal-green/10 px-1.5 py-0.5 rounded">
-                    {selectedDbIds.length} выбр.
-                  </span>
-                )}
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-mono font-semibold text-signal-amber flex items-center gap-2">
+                  Сигналы из БД
+                  {selectedDbIds.length > 0 && (
+                    <span className="text-[9px] text-signal-green bg-signal-green/10 px-1.5 py-0.5 rounded">
+                      {selectedDbIds.length} выбр.
+                    </span>
+                  )}
+                </h3>
+                <div className="flex gap-1">
+                  <button onClick={() => setSelectedDbIds(signals.map(s => s.id))}
+                    className="text-[9px] font-mono text-muted-foreground hover:text-foreground underline">Все</button>
+                  <button onClick={() => setSelectedDbIds([])}
+                    className="text-[9px] font-mono text-muted-foreground hover:text-foreground underline">Сброс</button>
+                </div>
+              </div>
               {signals.map(s => (
                 <div key={s.id}
                   className={`flex items-center gap-2 px-2 py-1.5 rounded text-[10px] font-mono cursor-pointer transition-colors mb-0.5 ${
