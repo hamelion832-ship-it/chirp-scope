@@ -264,6 +264,31 @@ export function InverseModelPanel() {
 
   const runClassicDecoder = useCallback((type: DecoderType) => {
     try {
+      if (!isLoRa) {
+        // Protocol-specific decoders
+        let protResult: import("@/lib/modulation-engine").ProtocolDecodedResult;
+        const sr = sampleRate;
+        if (["bpsk", "qpsk", "8psk"].includes(modType)) {
+          protResult = decodePSK(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym);
+        } else if (["2fsk", "4fsk"].includes(modType)) {
+          protResult = decodeFSK(noisySignal.real, noisySignal.imag, samplesPerSymbol, bitsPerSym, sr, freqDeviation);
+        } else {
+          const chipsPerSym = Math.floor(chipRate / symbolRate);
+          const sampPerChip = Math.max(1, Math.floor(sr / chipRate));
+          protResult = decodeCDMA(noisySignal.real, sampPerChip, chipsPerSym, 0);
+        }
+        // Wrap as ClassicDecodedResult
+        const fakeResult: ClassicDecodedResult = {
+          symbols: protResult.symbols, confidence: protResult.confidence,
+          decodedBits: [], decodedText: protResult.decodedText, scores: [],
+          method: type, processingTimeMs: protResult.processingTimeMs,
+        };
+        setClassicResults(prev => ({ ...prev, [type]: fakeResult }));
+        setTextComparison(prev => ({ ...prev, [type]: compareTexts(text, protResult.decodedText) }));
+        runReconstruction(protResult.symbols);
+        toast.success(`${protResult.method}: ${protResult.processingTimeMs.toFixed(0)}мс`);
+        return;
+      }
       let result: ClassicDecodedResult;
       const bwHz = bw * 1000;
       const sr = 500e3;
@@ -287,7 +312,7 @@ export function InverseModelPanel() {
       toast.error(`Ошибка ${type}`);
       console.error(e);
     }
-  }, [noisySignal, samplesPerSymbol, sf, bw, text, runReconstruction]);
+  }, [isLoRa, modType, noisySignal, samplesPerSymbol, sf, bw, bitsPerSym, sampleRate, symbolRate, freqDeviation, chipRate, text, runReconstruction]);
 
   const runAll = useCallback(async () => {
     setTraining(true);
