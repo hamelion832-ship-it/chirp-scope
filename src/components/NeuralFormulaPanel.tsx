@@ -49,6 +49,7 @@ export function NeuralFormulaPanel() {
   const [autoFit, setAutoFit] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AISuggestion | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  const [unifiedMode, setUnifiedMode] = useState(false);
 
   useEffect(() => {
     fetchSignals().then(setSignals);
