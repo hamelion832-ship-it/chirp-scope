@@ -75,20 +75,20 @@
 /* Chart canvas styles */
 .chart-panel {
   @apply bg-card rounded-lg border border-border p-4;
-  box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.08);
+  box-shadow: 0 2px 8px -2px hsl(220 15% 15% / 0.06);
 }
 
 .chart-panel:hover {
-  box-shadow: 0 0 30px -5px hsl(var(--primary) / 0.15);
+  box-shadow: 0 4px 16px -4px hsl(220 15% 15% / 0.1);
 }
 
-/* Glow effects */
+/* Glow effects — subtle on white */
 .glow-green {
-  text-shadow: 0 0 10px hsl(var(--signal-green) / 0.6);
+  color: hsl(var(--signal-green));
 }
 
 .glow-cyan {
-  text-shadow: 0 0 10px hsl(var(--signal-cyan) / 0.6);
+  color: hsl(var(--signal-cyan));
 }
 
 /* Scrollbar */
@@ -96,7 +96,7 @@
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: hsl(var(--muted));
 }
 ::-webkit-scrollbar-thumb {
   background: hsl(var(--border));
