@@ -122,7 +122,16 @@ export function InverseModelPanel() {
     }).filter(Boolean) as { signal: ReturnType<typeof generateLoRaSignal>; text: string; sf: number; bw: number }[];
   }, [signalSourceMode, dbSelectedIds, dbSignals]);
 
-  // MLP training
+  const noisySignal = useMemo(() => {
+    if (noiseLevel === 0) return signal;
+    const real = signal.real.map(v => v + (Math.random() - 0.5) * noiseLevel * 2);
+    const imag = signal.imag.map(v => v + (Math.random() - 0.5) * noiseLevel * 2);
+    return { ...signal, real, imag };
+  }, [signal, noiseLevel]);
+
+  const M = 2 ** sf;
+  const samplesPerSymbol = Math.floor(500e3 * (M / (bw * 1000)));
+
   const handleTrainMLP = useCallback(async () => {
     setTraining(true);
     setProgress(0);
