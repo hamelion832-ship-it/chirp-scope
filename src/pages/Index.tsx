@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Radio, Activity, Waves, Zap, Save, Tag, Brain } from "lucide-react";
+import { Radio, Activity, Waves, Zap, Save, Tag, Brain, Radar } from "lucide-react";
 import { ChartPanel } from "@/components/ChartPanel";
 import { SpectrogramPanel } from "@/components/SpectrogramPanel";
 import { IQPanel } from "@/components/IQPanel";
@@ -8,6 +8,7 @@ import { SignalList } from "@/components/SignalList";
 import { StatsPanel } from "@/components/StatsPanel";
 import { NeuralFormulaPanel } from "@/components/NeuralFormulaPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { UnifiedModelPanel } from "@/components/UnifiedModelPanel";
 import { saveSignal, type StoredSignal } from "@/lib/signal-db";
 import { toast } from "sonner";
 import {
@@ -144,6 +145,9 @@ const Index = () => {
           <TabsTrigger value="neural" className="font-mono text-xs data-[state=active]:text-signal-cyan">
             <Brain className="w-3 h-3 mr-1.5" /> Нейронная формула
           </TabsTrigger>
+          <TabsTrigger value="unified" className="font-mono text-xs data-[state=active]:text-signal-magenta">
+            <Radar className="w-3 h-3 mr-1.5" /> Единая модель
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard">
@@ -254,6 +258,10 @@ const Index = () => {
 
         <TabsContent value="neural">
           <NeuralFormulaPanel />
+        </TabsContent>
+
+        <TabsContent value="unified">
+          <UnifiedModelPanel />
         </TabsContent>
       </Tabs>
     </div>
