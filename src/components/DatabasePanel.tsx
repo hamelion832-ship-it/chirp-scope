@@ -339,8 +339,8 @@ export function DatabasePanel() {
               {[
                 { label: "Всего сигналов", value: stats?.total ?? 0, color: "text-signal-green" },
                 { label: "Ср. длина текста", value: stats?.avgLength?.toFixed(0) ?? "—", color: "text-signal-cyan" },
-                { label: "Уникальных SF", value: stats?.sfCounts ? Object.keys(stats.sfCounts).length : 0, color: "text-signal-amber" },
-                { label: "Уникальных BW", value: stats?.bwCounts ? Object.keys(stats.bwCounts).length : 0, color: "text-signal-magenta" },
+                { label: "Протоколов", value: stats?.modTypeCounts ? Object.keys(stats.modTypeCounts).length : 0, color: "text-signal-amber" },
+                { label: "Уникальных SF", value: stats?.sfCounts ? Object.keys(stats.sfCounts).length : 0, color: "text-signal-magenta" },
               ].map((item, i) => (
                 <div key={i} className="bg-secondary rounded-lg p-2.5 border border-border">
                   <p className="text-[9px] font-mono text-muted-foreground">{item.label}</p>
@@ -348,6 +348,22 @@ export function DatabasePanel() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Protocol distribution */}
+          <div className="chart-panel">
+            <h4 className="text-xs font-mono font-semibold text-foreground mb-2">Распределение по протоколу</h4>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={modTypeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                <XAxis dataKey="name" tick={chartLabelStyle} />
+                <YAxis tick={chartLabelStyle} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 10, fontFamily: "monospace", background: "hsl(0 0% 98%)", border: "1px solid hsl(220 13% 90%)" }} />
+                <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                  {modTypeData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
           {/* SF distribution bar chart */}
