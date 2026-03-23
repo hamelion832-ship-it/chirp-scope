@@ -19,6 +19,7 @@ export function DatabasePanel() {
   const [signals, setSignals] = useState<StoredSignal[]>([]);
   const [search, setSearch] = useState("");
   const [sfFilter, setSfFilter] = useState<number | undefined>();
+  const [modFilter, setModFilter] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<StoredSignal>>({});
@@ -29,13 +30,13 @@ export function DatabasePanel() {
   const load = useCallback(async () => {
     setLoading(true);
     const [data, s] = await Promise.all([
-      fetchSignals(search || undefined, sfFilter),
+      fetchSignals(search || undefined, sfFilter, modFilter),
       getSignalStats(),
     ]);
     setSignals(data);
     setStats(s);
     setLoading(false);
-  }, [search, sfFilter]);
+  }, [search, sfFilter, modFilter]);
 
   useEffect(() => { load(); }, [load]);
 
