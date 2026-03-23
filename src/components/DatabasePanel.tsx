@@ -21,6 +21,7 @@ export function DatabasePanel() {
   const [search, setSearch] = useState("");
   const [sfFilter, setSfFilter] = useState<number | undefined>();
   const [modFilter, setModFilter] = useState<string | undefined>();
+  const [encFilter, setEncFilter] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<StoredSignal>>({});
